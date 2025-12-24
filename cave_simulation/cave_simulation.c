@@ -1,32 +1,71 @@
+#include <stdbool.h>
 #include <stdio.h>
+#include <sys/ipc.h>
 #include <sys/msg.h>
+#include <sys/sem.h>
 #include <unistd.h>
 #include "cave_simulation.h"
 #include "common.h"
 
-static const char *ticket_office_queue_creation_error = "Ticket office queue creation error";
+static const char *message_queue_creation_error = "Message queue creation error";
+static const char *semaphore_creation_error = "Semaphore creation error";
+
+static int create_message_queue() {
+    key_t message_queue_key = ftok(".",MESSAGE_QUEUE_ID);
+    if (message_queue_key == -1) {
+        perror(message_queue_creation_error);
+        return -1;
+    }
+
+    int message_queue = msgget(message_queue_key, IPC_CREAT | 666);
+    if (message_queue == -1)
+        perror(message_queue_creation_error);
+
+    return message_queue;
+}
+
+static int create_semaphores() {
+    key_t semaphore_key = ftok(".",SEMAPHORE_ID);
+    if (semaphore_key == -1) {
+        perror(semaphore_creation_error);
+        return -1;
+    }
+
+    int semaphores = semget(semaphore_key, NSEMAPHORES, IPC_CREAT | 666);
+    if (semaphores == -1)
+        perror(semaphore_creation_error);
+
+    return semaphores;
+}
 
 CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation) {
-    key_t ticket_office_queue_key = ftok(".", TICKET_OFFICE_QUEUE_ID);
-    if (ticket_office_queue_key == -1) {
-        perror(ticket_office_queue_creation_error);
+    int message_queue = create_message_queue();
+    if (message_queue == -1)
         return CAVE_SIMULATION_INIT_FAIL;
-    }
+    cave_simulation->message_queue = message_queue;
 
-    int ticket_office_queue = msgget(ticket_office_queue_key, IPC_CREAT | IPC_EXCL | 200);
-    if (ticket_office_queue == -1) {
-        perror(ticket_office_queue_creation_error);
+    int semaphores = create_semaphores();
+    if (semaphores == -1)
         return CAVE_SIMULATION_INIT_FAIL;
-    }
-    cave_simulation->ticket_office_queue = ticket_office_queue;
+    cave_simulation->semaphores = semaphores;
 
     return CAVE_SIMULATION_SUCCESS;
 }
 
 CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
-    msgctl(cave_simulation->ticket_office_queue, IPC_RMID, NULL);
+    bool error = false;
 
-    return CAVE_SIMULATION_SUCCESS;
+    if (semctl(cave_simulation->semaphores, NSEMAPHORES, IPC_RMID, NULL) == -1) {
+        perror("Semaphore remove error");
+        error = true;
+    }
+
+    if (msgctl(cave_simulation->message_queue, IPC_RMID, NULL) == -1) {
+        perror("Message queue remove error");
+        error = true;
+    }
+
+    return error ? CAVE_SIMULATION_DESTROY_FAIL : CAVE_SIMULATION_SUCCESS;
 }
 
 CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {

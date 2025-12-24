@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-set(TARGET CaveSimulation)
+set(TARGET Visitor)
 add_executable(${TARGET} "main.c"
-                         "cave_simulation.c")
+                         "visitor.c")
 target_link_libraries(${TARGET} common)

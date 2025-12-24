@@ -3,7 +3,8 @@
 #include <sys/ipc.h>
 
 typedef struct {
-    int ticket_office_queue;
+    int message_queue;
+    int semaphores;
 } CaveSimulation;
 
 typedef enum {
