@@ -1,11 +1,13 @@
 #pragma once
 
+#include "common.h"
 #include <stdbool.h>
 
 typedef struct {
     int age;
     bool has_child;
 
+    SharedMemory *shared_memory;
     int message_queue;
     int semaphores;
 } Visitor;

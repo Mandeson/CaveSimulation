@@ -19,15 +19,24 @@ static void init_parameters(Visitor *visitor) {
 
 VisitorRes visitor_init(Visitor *visitor) {
     init_parameters(visitor);
+
+    SharedMemory *shared_memory = attach_shared_memory();
+    if (shared_memory == NULL)
+        return VISITOR_INIT_FAIL;
+    visitor->shared_memory = shared_memory;
     
     int message_queue = get_message_queue();
-    if (message_queue == -1)
+    if (message_queue == -1) {
+        detach_shared_memory(shared_memory);
         return VISITOR_INIT_FAIL;
+    }
     visitor->message_queue = message_queue;
 
     int semaphores = get_semaphores();
-    if (semaphores == -1)
+    if (semaphores == -1) {
+        detach_shared_memory(shared_memory);
         return VISITOR_INIT_FAIL;
+    }
     visitor->semaphores = semaphores;
 
     return VISITOR_SUCCESS;

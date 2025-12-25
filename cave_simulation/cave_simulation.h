@@ -3,6 +3,7 @@
 #include <sys/ipc.h>
 
 typedef struct {
+    int shared_memory;
     int message_queue;
     int semaphores;
 } CaveSimulation;
