@@ -5,8 +5,6 @@
 #include <sys/time.h>
 #include "common.h"
 
-static const char *message_queue_get_error = "Visitor: Cannot get message queue";
-
 static void init_parameters(Visitor *visitor) {
     // Get time for random seed (microseconds)
     struct timeval time;

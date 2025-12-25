@@ -1,30 +1,29 @@
 #include "common.h"
+#include <stdarg.h>
 #include <stdio.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/sem.h>
 #include <sys/shm.h>
-
-static const char *shared_memory_get_error = "Shared memory get error";
-static const char *message_queue_get_error = "Message queue get error";
-static const char *semaphore_get_error = "Semaphore get error";
+#include <fcntl.h>
+#include <unistd.h>
 
 SharedMemory *attach_shared_memory() {
     key_t shared_memory_key = ftok(".",SHARED_MEMORY_ID);
     if (shared_memory_key == -1) {
-        perror(shared_memory_get_error);
+        perror("attach_shared_memory: ftok");
         return NULL;
     }
 
     int shared_memory = shmget(shared_memory_key, sizeof(SharedMemory), IPC_CREAT | 0666);
     if (shared_memory == -1) {
-        perror(shared_memory_get_error);
+        perror("attach_shared_memory: shmget");
         return NULL;
     }
 
     void *shared_memory_addr = shmat(shared_memory, NULL, 0);
     if (shared_memory_addr == (void *)-1) {
-        perror("Shared memory attach error");
+        perror("attach_shared_memory: shmat");
         return NULL;
     }
 
@@ -33,19 +32,19 @@ SharedMemory *attach_shared_memory() {
 
 void detach_shared_memory(SharedMemory *shared_memory) {
     if (shmdt((void *)shared_memory) == -1)
-        perror("Shared memory detach error");
+        perror("detach_shared_memory: shmdt");
 }
 
 int get_message_queue() {
     key_t message_queue_key = ftok(".",MESSAGE_QUEUE_ID);
     if (message_queue_key == -1) {
-        perror(message_queue_get_error);
+        perror("get_message_queue: ftok");
         return -1;
     }
 
     int message_queue = msgget(message_queue_key, IPC_CREAT | 0666);
     if (message_queue == -1)
-        perror(message_queue_get_error);
+        perror("get_message_queue: msgget");
 
     return message_queue;
 }
@@ -53,13 +52,71 @@ int get_message_queue() {
 int get_semaphores() {
     key_t semaphore_key = ftok(".",SEMAPHORES_ID);
     if (semaphore_key == -1) {
-        perror(semaphore_get_error);
+        perror("get_semaphores: ftok");
         return -1;
     }
 
     int semaphores = semget(semaphore_key, NSEMAPHORES, IPC_CREAT | 0666);
     if (semaphores == -1)
-        perror(semaphore_get_error);
+        perror("get_semaphores: semget");
 
     return semaphores;
+}
+
+int take_semaphore(int semaphores, int number) {
+    struct sembuf op;
+    op.sem_num = number;
+    op.sem_op = -1;
+    op.sem_flg = 0;
+
+    if (semop(semaphores, &op, 1) == -1) {
+        perror("take_semaphore: semop");
+        return -1;
+    }
+
+    return 0;
+}
+
+int give_semaphore(int semaphores, int number) {
+    struct sembuf op;
+    op.sem_num = number;
+    op.sem_op = 1;
+    op.sem_flg = 0;
+
+    if (semop(semaphores, &op, 1) == -1) {
+        perror("give_semaphore: semop");
+        return -1;
+    }
+
+    return 0;
+}
+
+void output_log(int semaphores, const SharedMemory *shared_memory, const char *format, ...) {
+    va_list arg;
+    char string[256];
+
+    va_start(arg, format);
+    int cnt = vsnprintf(string, 256 - 1, format, arg);
+    va_end(arg);
+
+    string[cnt] = '\n';
+    string[cnt + 1] = '\0';
+
+    take_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
+
+    puts(string);
+    fflush(stdout);
+
+    int fd = open(shared_memory->output_file_name, O_WRONLY | O_APPEND, 0600);
+    if (fd == -1) {
+        perror("output_log: open");
+        give_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
+        return;
+    }
+    if (write(fd, string, cnt + 1) == -1)
+        perror("output_log: write");
+    if (close(fd) == -1)
+        perror("output_log: close");
+
+    give_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
 }

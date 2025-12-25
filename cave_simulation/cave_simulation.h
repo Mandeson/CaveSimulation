@@ -1,11 +1,14 @@
 #pragma once
 
+#include "common.h"
 #include <sys/ipc.h>
 
 typedef struct {
-    int shared_memory;
+    int shared_memory_id;
     int message_queue;
     int semaphores;
+
+    SharedMemory *shared_memory;
 } CaveSimulation;
 
 typedef enum {
