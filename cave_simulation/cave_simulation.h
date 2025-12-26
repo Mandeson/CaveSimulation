@@ -3,6 +3,9 @@
 #include "common.h"
 #include <sys/ipc.h>
 
+// Maximum delay between new visitors coming to the ticket office
+#define CAVE_SIMULATION_MAX_VISITORS_DELAY 20
+
 typedef struct {
     int shared_memory_id;
     int message_queue;

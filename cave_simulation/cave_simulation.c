@@ -1,9 +1,13 @@
 #include "cave_simulation.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/msg.h>
 #include <sys/sem.h>
+#include <sys/time.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -37,6 +41,11 @@ static int init_semaphores(int semaphores) {
 }
 
 CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation) {
+    // Get time for random seed (microseconds)
+    struct timeval time;
+    gettimeofday(&time, NULL);
+    srand(time.tv_usec);
+
     int shared_memory = create_shared_memory(&cave_simulation->shared_memory);
     if (shared_memory == -1)
         return CAVE_SIMULATION_INIT_FAIL;
@@ -77,6 +86,15 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation) {
 CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     bool error = false;
 
+    cave_simulation->shared_memory->terminating = true;
+
+    Message message = {0};
+    strcpy(message.mtext, "terminate");
+
+    message.mtype = cave_simulation->shared_memory->ticket_clerk_pid;
+    if (msgsnd(cave_simulation->message_queue, (const void *)&message, sizeof(message.mtext), 0) == -1)
+        perror("cave_simulation_destroy: msgsnd (TicketClerk)");
+
     for (int i = 0; i < cave_simulation->child_processes; i++) {
         if (wait(NULL) == -1) {
             perror("cave_simulation_destroy: wait");
@@ -107,7 +125,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
 
     int fork_res = fork();
     if (fork_res == -1) {
-        perror("cave_simulation_run: fork");
+        perror("cave_simulation_run: fork (TicketClerk)");
         return CAVE_SIMULATION_RUN_FAIL;
     }
     if (fork_res == 0) {
@@ -118,6 +136,31 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     }
     cave_simulation->child_processes++;
     cave_simulation->shared_memory->ticket_clerk_pid = fork_res;
+
+    uint64_t time = 0;
+
+    do {
+        take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
+        cave_simulation->shared_memory->visitors_approaching++;
+        give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
+
+        fork_res = fork();
+        if (fork_res == -1) {
+            perror("cave_simulation_run: fork (Visitor)");
+            return CAVE_SIMULATION_RUN_FAIL;
+        }
+        if (fork_res == 0) {
+            if (execl("./Visitor", "Visitor", NULL) == -1) {
+                perror("cave_simulation_run: execl (Visitor)");
+                return CAVE_SIMULATION_RUN_FAIL;
+            }
+        }
+        cave_simulation->child_processes++;
+
+        uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 1000);
+        usleep(wait_time);
+        time += wait_time;
+    } while (time < 1000 * 1000);
 
     return CAVE_SIMULATION_SUCCESS;
 }

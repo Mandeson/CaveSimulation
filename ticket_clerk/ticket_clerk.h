@@ -3,6 +3,9 @@
 #include "common.h"
 #include <stdbool.h>
 
+// Delay between ticket sales
+#define TICKET_CLERK_DELAY 10 //In miliseconds
+
 typedef struct {
     SharedMemory *shared_memory;
     int message_queue;

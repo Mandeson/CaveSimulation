@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #define SHARED_MEMORY_ID 59
 
 #define MESSAGE_QUEUE_ID 60
@@ -13,9 +14,17 @@
 
 typedef struct {
     char output_file_name[256];
+    bool terminating;
     int ticket_clerk_pid;
+    int visitors_approaching;
     int priority_ticket_line_size;
+    int regular_ticket_line_size;
 } SharedMemory;
+
+typedef struct {
+    long mtype;
+    char mtext[32];
+} Message;
 
 SharedMemory *attach_shared_memory();
 int detach_shared_memory(SharedMemory *shared_memory);

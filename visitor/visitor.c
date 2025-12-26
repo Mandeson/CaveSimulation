@@ -3,6 +3,7 @@
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/time.h>
+#include <unistd.h>
 #include "common.h"
 
 static void init_parameters(Visitor *visitor) {
@@ -41,6 +42,9 @@ VisitorRes visitor_init(Visitor *visitor) {
 }
 
 VisitorRes visitor_destroy(Visitor *visitor) {
+    output_log(visitor->semaphores, visitor->shared_memory,
+            "Destroying visitor (PID: %d)", getpid());
+
     if (detach_shared_memory(visitor->shared_memory) == -1)
         return VISITOR_DESTROY_FAIL;
 
@@ -48,5 +52,25 @@ VisitorRes visitor_destroy(Visitor *visitor) {
 }
 
 VisitorRes visitor_run(Visitor *visitor) {
+    output_log(visitor->semaphores, visitor->shared_memory,
+            "Running visitor (PID: %d)", getpid());
+
+    take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+    visitor->shared_memory->regular_ticket_line_size++;
+    give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+
+    take_semaphore(visitor->semaphores, TICKET_REGULAR_SEMAPHORE);
+
+    take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+    visitor->shared_memory->regular_ticket_line_size--;
+    bool terminating = visitor->shared_memory->terminating;
+    give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+
+    if (terminating)
+        return VISITOR_RUN_FAIL;
+
+    output_log(visitor->semaphores, visitor->shared_memory,
+            "Visitor %d enters the ticket office", getpid());
+
     return VISITOR_SUCCESS;
 }
