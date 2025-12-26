@@ -30,9 +30,11 @@ SharedMemory *attach_shared_memory() {
     return (SharedMemory *)shared_memory_addr;
 }
 
-void detach_shared_memory(SharedMemory *shared_memory) {
-    if (shmdt((void *)shared_memory) == -1)
+int detach_shared_memory(SharedMemory *shared_memory) {
+    int res = shmdt((void *)shared_memory);
+    if (res == -1)
         perror("detach_shared_memory: shmdt");
+    return res;
 }
 
 int get_message_queue() {

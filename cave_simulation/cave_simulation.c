@@ -4,7 +4,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/sem.h>
+#include <sys/wait.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "operations.h"
@@ -22,7 +24,12 @@ static void init_shared_memory(SharedMemory *shared_memory) {
 
 static int init_semaphores(int semaphores) {
     if (semctl(semaphores, OUTPUT_LOG_SEMAPHORE, SETVAL, 1) == -1) {
-        perror("init_semaphores: semctl");
+        perror("init_semaphores: semctl (OUTPUT_LOG_SEMAPHORE)");
+        return -1;
+    }
+
+    if (semctl(semaphores, SHARED_MEMORY_SEMAPHORE, SETVAL, 1) == -1) {
+        perror("init_semaphores: semctl (SHARED_MEMORY_SEMAPHORE)");
         return -1;
     }
 
@@ -69,6 +76,16 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation) {
 
 CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     bool error = false;
+
+    for (int i = 0; i < cave_simulation->child_processes; i++) {
+        if (wait(NULL) == -1) {
+            perror("cave_simulation_destroy: wait");
+            error = true;
+        }
+    }
+
+    output_log(cave_simulation->semaphores, cave_simulation->shared_memory,
+            "Destroying cave simulation (PID: %d)", getpid());
     
     if (destroy_semaphores(cave_simulation->semaphores) == -1)
         error = true;
@@ -85,5 +102,22 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
 }
 
 CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
+    output_log(cave_simulation->semaphores, cave_simulation->shared_memory,
+            "Running cave simulation (PID: %d)", getpid());
+
+    int fork_res = fork();
+    if (fork_res == -1) {
+        perror("cave_simulation_run: fork");
+        return CAVE_SIMULATION_RUN_FAIL;
+    }
+    if (fork_res == 0) {
+        if (execl("./TicketClerk", "TicketClerk", NULL) == -1) {
+            perror("cave_simulation_run: execl (TicketClerk)");
+            return CAVE_SIMULATION_RUN_FAIL;
+        }
+    }
+    cave_simulation->child_processes++;
+    cave_simulation->shared_memory->ticket_clerk_pid = fork_res;
+
     return CAVE_SIMULATION_SUCCESS;
 }

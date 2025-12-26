@@ -7,6 +7,7 @@ typedef struct {
     int shared_memory_id;
     int message_queue;
     int semaphores;
+    int child_processes;
 
     SharedMemory *shared_memory;
 } CaveSimulation;
