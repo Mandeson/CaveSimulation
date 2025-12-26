@@ -41,6 +41,9 @@ VisitorRes visitor_init(Visitor *visitor) {
 }
 
 VisitorRes visitor_destroy(Visitor *visitor) {
+    if (detach_shared_memory(visitor->shared_memory) == -1)
+        return VISITOR_DESTROY_FAIL;
+
     return VISITOR_SUCCESS;
 }
 
