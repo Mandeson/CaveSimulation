@@ -66,7 +66,6 @@ VisitorRes visitor_run(Visitor *visitor) {
     take_semaphore(visitor->semaphores, TICKET_REGULAR_SEMAPHORE);
 
     take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
-    visitor->shared_memory->regular_ticket_line_size--;
     bool terminating = visitor->shared_memory->terminating;
     give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
 

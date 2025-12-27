@@ -76,9 +76,11 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
 
         if (ticket_clerk->shared_memory->priority_ticket_line_size > 0) {
             give_semaphore(ticket_clerk->semaphores, TICKET_PRIORITY_SEMAPHORE);
+            ticket_clerk->shared_memory->priority_ticket_line_size--;
             ticket_clerk->shared_memory->visitors_approaching--;
         } else if (ticket_clerk->shared_memory->regular_ticket_line_size > 0) {
             give_semaphore(ticket_clerk->semaphores, TICKET_REGULAR_SEMAPHORE);
+            ticket_clerk->shared_memory->regular_ticket_line_size--;
             ticket_clerk->shared_memory->visitors_approaching--;
         }
         empty = (ticket_clerk->shared_memory->visitors_approaching == 0);

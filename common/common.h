@@ -14,7 +14,7 @@
 
 typedef struct {
     char output_file_name[256];
-    bool terminating;
+    volatile bool terminating;
     int ticket_clerk_pid;
     volatile int visitors_approaching;
     volatile int visitors_finished;
