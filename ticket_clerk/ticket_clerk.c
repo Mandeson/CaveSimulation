@@ -66,8 +66,17 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
                         "ticket_clerk_run: wrong number of bytes received from message queue");
                 return TICKET_CLERK_RUN_FAIL;
             } else {
-                if (strcmp(message.mtext, "terminate") == 0)
+                if (strcmp(message.mtext, "terminate") == 0) {
                     terminate = true;
+                } else {
+                    VisitorMessage visitor_message;
+                    memcpy(&visitor_message, message.mtext, sizeof(visitor_message));
+                    output_log(ticket_clerk->semaphores, ticket_clerk->shared_memory,
+                            "TicketClerk received ticket request from PID: %d, age: %d, "
+                            "children: %d",
+                            visitor_message.pid, visitor_message.visitor_info.age,
+                            visitor_message.visitor_info.children_count);
+                }
             }
         } while (res != -1);
 

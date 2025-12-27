@@ -1,5 +1,7 @@
 #include "visitor.h"
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/time.h>
@@ -12,8 +14,18 @@ static void init_parameters(Visitor *visitor) {
     gettimeofday(&time, NULL);
     srand(time.tv_usec);
 
-    visitor->age = rand() % (80 - 1) + 1;
-    visitor->has_child = false;
+    int age = rand() % (80 + 1 - 8) + 8;
+    visitor->visitor_info.age = age;
+    if (age <= 18) {
+        visitor->visitor_info.children_count = 0;
+    } else {
+        int children_count = rand() % 3;
+        visitor->visitor_info.children_count = children_count;
+        for (int i = 0; i < children_count; i++) {
+            int max_child_age = MIN(7, age - 18);
+            visitor->visitor_info.children_ages[i] = rand() % (max_child_age + 1 - 1) + 1;
+        }
+    }
 }
 
 VisitorRes visitor_init(Visitor *visitor) {
@@ -56,8 +68,9 @@ VisitorRes visitor_destroy(Visitor *visitor) {
 }
 
 VisitorRes visitor_run(Visitor *visitor) {
+    pid_t pid = getpid();
     output_log(visitor->semaphores, visitor->shared_memory,
-            "Running visitor (PID: %d)", getpid());
+            "Running visitor (PID: %d)", pid);
 
     take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
     visitor->shared_memory->regular_ticket_line_size++;
@@ -73,7 +86,20 @@ VisitorRes visitor_run(Visitor *visitor) {
         return VISITOR_RUN_FAIL;
 
     output_log(visitor->semaphores, visitor->shared_memory,
-            "Visitor %d enters the ticket office", getpid());
+            "Visitor %d enters the ticket office and requests ticket", pid);
 
+    // Request ticket from TicketClerk
+    VisitorMessage visitor_message;
+    visitor_message.pid = pid;
+    visitor_message.visitor_info = visitor->visitor_info;
+
+    Message message = {0};
+    message.mtype = visitor->shared_memory->ticket_clerk_pid;
+    memcpy(message.mtext, (const void *)&visitor_message, sizeof(visitor_message));
+    if (msgsnd(visitor->message_queue, &message, sizeof(message.mtext), 0) == -1) {
+        perror("visitor_run: msgsnd");
+        return VISITOR_RUN_FAIL;
+    }
+    
     return VISITOR_SUCCESS;
 }

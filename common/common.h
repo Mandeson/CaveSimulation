@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 #define SHARED_MEMORY_ID 59
 
 #define MESSAGE_QUEUE_ID 60
@@ -11,6 +12,8 @@
 #define SHARED_MEMORY_SEMAPHORE 1
 #define TICKET_REGULAR_SEMAPHORE 2
 #define TICKET_PRIORITY_SEMAPHORE 3
+
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
 typedef struct {
     char output_file_name[256];
@@ -24,8 +27,19 @@ typedef struct {
 
 typedef struct {
     long mtype;
-    char mtext[32];
+    char mtext[16];
 } Message;
+
+typedef struct {
+    int age;
+    uint8_t children_count;
+    uint8_t children_ages[7];
+} VisitorInfo;
+
+typedef struct {
+    int pid;
+    VisitorInfo visitor_info;
+} VisitorMessage;
 
 SharedMemory *attach_shared_memory();
 int detach_shared_memory(SharedMemory *shared_memory);

@@ -4,8 +4,7 @@
 #include <stdbool.h>
 
 typedef struct {
-    int age;
-    bool has_child;
+    VisitorInfo visitor_info;
 
     SharedMemory *shared_memory;
     int message_queue;
