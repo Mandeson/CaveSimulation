@@ -1,8 +1,11 @@
 #include "ticket_clerk.h"
+#include <signal.h>
 
 TicketClerk ticket_clerk;
 
 int main(void) {
+    signal(SIGINT, SIG_IGN);
+
     TicketClerkRes res = ticket_clerk_init(&ticket_clerk);
     if (res != TICKET_CLERK_SUCCESS)
         return res;

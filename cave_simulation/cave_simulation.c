@@ -1,5 +1,6 @@
 #include "cave_simulation.h"
 
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -150,6 +151,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
             return CAVE_SIMULATION_RUN_FAIL;
         }
         if (fork_res == 0) {
+            signal(SIGINT, SIG_IGN);
             if (execl("./Visitor", "Visitor", NULL) == -1) {
                 perror("cave_simulation_run: execl (Visitor)");
                 return CAVE_SIMULATION_RUN_FAIL;
@@ -159,8 +161,23 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
 
         uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 1000);
         usleep(wait_time);
+
         time += wait_time;
-    } while (time < 1000 * 1000);
+
+        take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
+        for (int i = 0; i < cave_simulation->shared_memory->visitors_finished; i++) {
+            if (wait(NULL) == -1)
+                perror("cave_simulation_run: wait");
+            else
+                cave_simulation->child_processes--;
+        }
+        cave_simulation->shared_memory->visitors_finished = 0;
+        give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
+    } while (!cave_simulation->terminating && time < 1000 * 1000 * 20);
 
     return CAVE_SIMULATION_SUCCESS;
+}
+
+void cave_simulation_terminate(CaveSimulation *cave_simulation) {
+    cave_simulation->terminating = true;
 }

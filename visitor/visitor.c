@@ -45,6 +45,10 @@ VisitorRes visitor_destroy(Visitor *visitor) {
     output_log(visitor->semaphores, visitor->shared_memory,
             "Destroying visitor (PID: %d)", getpid());
 
+    take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+    visitor->shared_memory->visitors_finished++;
+    give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+
     if (detach_shared_memory(visitor->shared_memory) == -1)
         return VISITOR_DESTROY_FAIL;
 

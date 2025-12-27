@@ -1,8 +1,11 @@
 #include "visitor.h"
+#include <signal.h>
 
 Visitor visitor;
 
 int main(void) {
+    signal(SIGINT, SIG_IGN);
+
     VisitorRes res = visitor_init(&visitor);
     if (res != VISITOR_SUCCESS)
         return res;
