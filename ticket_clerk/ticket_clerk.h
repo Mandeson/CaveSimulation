@@ -5,6 +5,7 @@
 
 // Delay between ticket sales
 #define TICKET_CLERK_DELAY 10 //In miliseconds
+#define TICKET_COST 26
 
 typedef struct {
     SharedMemory *shared_memory;

@@ -141,10 +141,6 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     uint64_t time = 0;
 
     do {
-        take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
-        cave_simulation->shared_memory->visitors_approaching++;
-        give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
-
         fork_res = fork();
         if (fork_res == -1) {
             perror("cave_simulation_run: fork (Visitor)");
@@ -158,6 +154,11 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
             }
         }
         cave_simulation->child_processes++;
+        
+        take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
+        cave_simulation->shared_memory->visitors_count++;
+        give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
+
 
         uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 1000);
         usleep(wait_time);

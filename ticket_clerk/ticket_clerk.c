@@ -1,7 +1,9 @@
 #include "ticket_clerk.h"
 #include "common.h"
 #include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
@@ -10,6 +12,11 @@
 #include <unistd.h>
 
 TicketClerkRes ticket_clerk_init(TicketClerk *ticket_clerk) {
+    // Get time for random seed (microseconds)
+    struct timeval time;
+    gettimeofday(&time, NULL);
+    srand(time.tv_usec);
+
     SharedMemory *shared_memory = attach_shared_memory();
     if (shared_memory == NULL)
         return TICKET_CLERK_INIT_FAIL;
@@ -40,6 +47,32 @@ TicketClerkRes ticket_clerk_destroy(TicketClerk *ticket_clerk) {
         return TICKET_CLERK_DESTROY_FAIL;
 
     return TICKET_CLERK_SUCCESS;
+}
+
+static void ticket_clerk_sell_tickets(TicketClerk *ticket_clerk, const VisitorMessage *request) {
+    uint8_t trail_nr;
+    const VisitorInfo *info = &request->visitor_info;
+    if (info->age > 75 || info->children_count > 0) {
+        trail_nr = 2;
+    } else {
+        trail_nr = rand() % 2 + 1;
+    }
+
+    int cost = TICKET_COST;
+    for (int i = 0; i < info->children_count; i++) {
+        if (info->children_ages[i] >= 3)
+            cost += TICKET_COST;
+    }
+
+    TicketMessage ticket_message;
+    ticket_message.trail_nr = trail_nr;
+    ticket_message.cost = cost;
+
+    Message message = {0};
+    message.mtype = request->pid;
+    memcpy(&message.mtext, &ticket_message, sizeof(ticket_message));
+    if (msgsnd(ticket_clerk->message_queue, &message, sizeof(message.mtext), 0) == -1)
+        perror("ticket_clerk_sell_tickets: msgsnd");
 }
 
 TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
@@ -73,9 +106,10 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
                     memcpy(&visitor_message, message.mtext, sizeof(visitor_message));
                     output_log(ticket_clerk->semaphores, ticket_clerk->shared_memory,
                             "TicketClerk received ticket request from PID: %d, age: %d, "
-                            "children: %d",
+                            "children: %d and sends the ticket",
                             visitor_message.pid, visitor_message.visitor_info.age,
                             visitor_message.visitor_info.children_count);
+                    ticket_clerk_sell_tickets(ticket_clerk, &visitor_message);
                 }
             }
         } while (res != -1);
@@ -86,13 +120,11 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
         if (ticket_clerk->shared_memory->priority_ticket_line_size > 0) {
             give_semaphore(ticket_clerk->semaphores, TICKET_PRIORITY_SEMAPHORE);
             ticket_clerk->shared_memory->priority_ticket_line_size--;
-            ticket_clerk->shared_memory->visitors_approaching--;
         } else if (ticket_clerk->shared_memory->regular_ticket_line_size > 0) {
             give_semaphore(ticket_clerk->semaphores, TICKET_REGULAR_SEMAPHORE);
             ticket_clerk->shared_memory->regular_ticket_line_size--;
-            ticket_clerk->shared_memory->visitors_approaching--;
         }
-        empty = (ticket_clerk->shared_memory->visitors_approaching == 0);
+        empty = (ticket_clerk->shared_memory->visitors_count == 0);
 
         give_semaphore(ticket_clerk->semaphores, SHARED_MEMORY_SEMAPHORE);
 

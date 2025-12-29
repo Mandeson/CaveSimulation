@@ -58,6 +58,7 @@ VisitorRes visitor_destroy(Visitor *visitor) {
             "Destroying visitor (PID: %d)", getpid());
 
     take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+    visitor->shared_memory->visitors_count--;
     visitor->shared_memory->visitors_finished++;
     give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
 
@@ -100,6 +101,31 @@ VisitorRes visitor_run(Visitor *visitor) {
         perror("visitor_run: msgsnd");
         return VISITOR_RUN_FAIL;
     }
-    
+
+    // Receive the ticket
+    int res = msgrcv(visitor->message_queue, &message, sizeof(message.mtext), pid, 0);
+    if (res == -1) {
+        perror("visitor_run: msgrcv");
+        return VISITOR_RUN_FAIL;
+    } else if (res != sizeof(message.mtext)) {
+        output_log(visitor->semaphores, visitor->shared_memory,
+                "visitor_run: wrong number of bytes received from message queue");
+        return VISITOR_RUN_FAIL;
+    }
+
+    take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+    terminating = visitor->shared_memory->terminating;
+    give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+
+    if (terminating)
+        return VISITOR_RUN_FAIL;
+
+    TicketMessage ticket_message;
+    memcpy(&ticket_message, message.mtext, sizeof(TicketMessage));
+
+    output_log(visitor->semaphores, visitor->shared_memory,
+            "Visitor (PID: %d) has received the ticket for trail %d and pays %d golden coins",
+            pid, ticket_message.trail_nr, ticket_message.cost);
+
     return VISITOR_SUCCESS;
 }

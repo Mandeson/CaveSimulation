@@ -19,7 +19,7 @@ typedef struct {
     char output_file_name[256];
     volatile bool terminating;
     int ticket_clerk_pid;
-    volatile int visitors_approaching;
+    volatile int visitors_count;
     volatile int visitors_finished;
     volatile int priority_ticket_line_size;
     volatile int regular_ticket_line_size;
@@ -40,6 +40,11 @@ typedef struct {
     int pid;
     VisitorInfo visitor_info;
 } VisitorMessage;
+
+typedef struct {
+    uint8_t trail_nr;
+    int cost;
+} TicketMessage;
 
 SharedMemory *attach_shared_memory();
 int detach_shared_memory(SharedMemory *shared_memory);
