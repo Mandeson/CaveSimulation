@@ -5,6 +5,7 @@ Visitor visitor;
 
 int main(void) {
     signal(SIGINT, SIG_IGN);
+    signal(SIGPIPE, SIG_IGN);
 
     VisitorRes res = visitor_init(&visitor);
     if (res != VISITOR_SUCCESS)

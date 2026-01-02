@@ -1,6 +1,6 @@
 #include "cave_simulation.h"
 
-#include <signal.h>
+#include <linux/limits.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -81,7 +81,32 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation) {
         return CAVE_SIMULATION_INIT_FAIL;
     }
 
+    if (pipe(cave_simulation->shared_memory->catwalk1_pipe) == -1
+            || pipe(cave_simulation->shared_memory->catwalk2_pipe) == -1 ) {
+        perror("cave_simulation_init: pipe");
+        destroy_semaphores(semaphores);
+        destroy_message_queue(message_queue);
+        destroy_shared_memory(&cave_simulation->shared_memory, shared_memory);
+        return CAVE_SIMULATION_INIT_FAIL;
+    }
+
     return CAVE_SIMULATION_SUCCESS;
+}
+
+static void close_catwalk_pipe_input(const SharedMemory *shared_memory) {
+    if (close(shared_memory->catwalk1_pipe[1]) == -1)
+        perror("close_catwalk_pipe_input: close (Catwalk1)");
+
+    if (close(shared_memory->catwalk2_pipe[1]) == -1)
+        perror("close_catwalk_pipe_input: close (Catwalk2)");
+}
+
+static void close_catwalk_pipe_output(const SharedMemory *shared_memory) {
+    if (close(shared_memory->catwalk1_pipe[0]) == -1)
+        perror("close_catwalk_pipe_output: close (Catwalk1)");
+
+    if (close(shared_memory->catwalk2_pipe[0]) == -1)
+        perror("close_catwalk_pipe_output: close (Catwalk2)");
 }
 
 CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
@@ -95,6 +120,17 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     message.mtype = cave_simulation->shared_memory->ticket_clerk_pid;
     if (msgsnd(cave_simulation->message_queue, (const void *)&message, sizeof(message.mtext), 0) == -1)
         perror("cave_simulation_destroy: msgsnd (TicketClerk)");
+
+    message.mtype = cave_simulation->shared_memory->guide1_pid;
+    if (msgsnd(cave_simulation->message_queue, (const void *)&message, sizeof(message.mtext), 0) == -1)
+        perror("cave_simulation_destroy: msgsnd (Guide1)");
+
+    message.mtype = cave_simulation->shared_memory->guide2_pid;
+    if (msgsnd(cave_simulation->message_queue, (const void *)&message, sizeof(message.mtext), 0) == -1)
+        perror("cave_simulation_destroy: msgsnd (Guide2)");
+
+    close_catwalk_pipe_input(cave_simulation->shared_memory);
+    close_catwalk_pipe_output(cave_simulation->shared_memory);
 
     for (int i = 0; i < cave_simulation->child_processes; i++) {
         if (wait(NULL) == -1) {
@@ -120,9 +156,36 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     return error ? CAVE_SIMULATION_DESTROY_FAIL : CAVE_SIMULATION_SUCCESS;
 }
 
+static void init_parameters(CaveSimulation *cave_simulation) {
+    cave_simulation->shared_memory->K = 5;
+}
+
+static int spawn_guide(CaveSimulation *cave_simulation) {
+    int fork_res = fork();
+    if (fork_res == -1) {
+        perror("spawn_guide: fork");
+        return -1;
+    }
+    if (fork_res == 0) {
+        signal(SIGINT, SIG_IGN);
+
+        close_catwalk_pipe_input(cave_simulation->shared_memory);
+
+        if (execl("./Guide", "Guide", NULL) == -1) {
+            perror("spawn_guide: execl =");
+            return -1;
+        }
+    }
+    cave_simulation->child_processes++;
+
+    return fork_res;
+}
+
 CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     output_log(cave_simulation->semaphores, cave_simulation->shared_memory,
             "Running cave simulation (PID: %d)", getpid());
+    
+    init_parameters(cave_simulation);
 
     int fork_res = fork();
     if (fork_res == -1) {
@@ -130,6 +193,11 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         return CAVE_SIMULATION_RUN_FAIL;
     }
     if (fork_res == 0) {
+        signal(SIGINT, SIG_IGN);
+
+        close_catwalk_pipe_input(cave_simulation->shared_memory);
+        close_catwalk_pipe_output(cave_simulation->shared_memory);
+
         if (execl("./TicketClerk", "TicketClerk", NULL) == -1) {
             perror("cave_simulation_run: execl (TicketClerk)");
             return CAVE_SIMULATION_RUN_FAIL;
@@ -137,6 +205,14 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     }
     cave_simulation->child_processes++;
     cave_simulation->shared_memory->ticket_clerk_pid = fork_res;
+
+    int res1 = spawn_guide(cave_simulation);
+    int res2 = spawn_guide(cave_simulation);
+    if (res1 == -1 || res2 == -1)
+        return CAVE_SIMULATION_RUN_FAIL;
+
+    cave_simulation->shared_memory->guide1_pid = res1;
+    cave_simulation->shared_memory->guide2_pid = res2;
 
     uint64_t time = 0;
 
@@ -148,6 +224,9 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         }
         if (fork_res == 0) {
             signal(SIGINT, SIG_IGN);
+
+            close_catwalk_pipe_output(cave_simulation->shared_memory);
+
             if (execl("./Visitor", "Visitor", NULL) == -1) {
                 perror("cave_simulation_run: execl (Visitor)");
                 return CAVE_SIMULATION_RUN_FAIL;
@@ -158,7 +237,6 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
         cave_simulation->shared_memory->visitors_count++;
         give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
-
 
         uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 1000);
         usleep(wait_time);

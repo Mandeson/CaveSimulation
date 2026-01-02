@@ -18,11 +18,25 @@
 typedef struct {
     char output_file_name[256];
     volatile bool terminating;
+
+    int K; // capacity of the catwalks
+
     int ticket_clerk_pid;
+    int guide1_pid;
+    int guide2_pid;
+
+    int catwalk1_pipe[2];
+    int catwalk2_pipe[2];
+
+    // Number of visitors waiting to enter a catwalk or being currently on it
+    int catwalk1_visitors;
+    int catwalk2_visitors;
+
     volatile int visitors_count;
     volatile int visitors_finished;
     volatile int priority_ticket_line_size;
     volatile int regular_ticket_line_size;
+    volatile int guides_count;
 } SharedMemory;
 
 typedef struct {
@@ -45,6 +59,16 @@ typedef struct {
     uint8_t trail_nr;
     int cost;
 } TicketMessage;
+
+typedef struct {
+    // Indicates whether the visitor is allowed to enter the cave or needs to go back
+    bool entering_cave;
+} VisitorEnterMessage;
+
+typedef struct {
+    int pid;
+    int children_count;
+} VisitorOnCatwalk;
 
 SharedMemory *attach_shared_memory();
 int detach_shared_memory(SharedMemory *shared_memory);

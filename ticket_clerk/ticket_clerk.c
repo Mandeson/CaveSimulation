@@ -1,6 +1,7 @@
 #include "ticket_clerk.h"
 #include "common.h"
 #include <errno.h>
+#include <linux/limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>

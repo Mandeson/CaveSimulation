@@ -4,6 +4,8 @@
 #include <stdbool.h>
 
 typedef struct {
+    int number;
+
     SharedMemory *shared_memory;
     int message_queue;
     int semaphores;
