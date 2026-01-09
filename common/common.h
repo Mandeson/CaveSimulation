@@ -24,8 +24,7 @@ typedef struct {
     int guide1_pid;
     int guide2_pid;
 
-    int catwalk1_pipe[2];
-    int catwalk2_pipe[2];
+    int catwalk_pipe[2][2];
 
     // Number of visitors waiting to enter a catwalk or being currently on it
     int catwalk1_visitors;

@@ -42,6 +42,8 @@ static int init_semaphores(int semaphores) {
 }
 
 CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation) {
+    signal(SIGUSR1, SIG_IGN);
+
     // Get time for random seed (microseconds)
     struct timeval time;
     gettimeofday(&time, NULL);
@@ -81,8 +83,8 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation) {
         return CAVE_SIMULATION_INIT_FAIL;
     }
 
-    if (pipe(cave_simulation->shared_memory->catwalk1_pipe) == -1
-            || pipe(cave_simulation->shared_memory->catwalk2_pipe) == -1 ) {
+    if (pipe(cave_simulation->shared_memory->catwalk_pipe[0]) == -1
+            || pipe(cave_simulation->shared_memory->catwalk_pipe[1]) == -1 ) {
         perror("cave_simulation_init: pipe");
         destroy_semaphores(semaphores);
         destroy_message_queue(message_queue);
@@ -94,22 +96,27 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation) {
 }
 
 static void close_catwalk_pipe_input(const SharedMemory *shared_memory) {
-    if (close(shared_memory->catwalk1_pipe[1]) == -1)
+    if (close(shared_memory->catwalk_pipe[0][1]) == -1)
         perror("close_catwalk_pipe_input: close (Catwalk1)");
 
-    if (close(shared_memory->catwalk2_pipe[1]) == -1)
+    if (close(shared_memory->catwalk_pipe[1][1]) == -1)
         perror("close_catwalk_pipe_input: close (Catwalk2)");
 }
 
 static void close_catwalk_pipe_output(const SharedMemory *shared_memory) {
-    if (close(shared_memory->catwalk1_pipe[0]) == -1)
+    if (close(shared_memory->catwalk_pipe[0][0]) == -1)
         perror("close_catwalk_pipe_output: close (Catwalk1)");
 
-    if (close(shared_memory->catwalk2_pipe[0]) == -1)
+    if (close(shared_memory->catwalk_pipe[1][0]) == -1)
         perror("close_catwalk_pipe_output: close (Catwalk2)");
 }
 
 CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
+    if (cave_simulation->terminating) {
+        signal(SIGUSR1, SIG_IGN);
+        kill(0, SIGUSR1);
+    }
+
     bool error = false;
 
     // Now do not wait for the ticket clerk and guides
@@ -119,6 +126,9 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
             error = true;
         }
     }
+
+    output_log(cave_simulation->semaphores, cave_simulation->shared_memory,
+            "Finished destroying visitors");
 
     Message message = {0};
     strcpy(message.mtext, "terminate");
@@ -221,6 +231,9 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     cave_simulation->shared_memory->guide2_pid = res2;
 
     uint64_t time = 0;
+
+    setpgid(0, 0);
+    signal(SIGUSR1, SIG_DFL);
 
     do {
         fork_res = fork();
