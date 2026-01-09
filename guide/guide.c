@@ -64,7 +64,7 @@ static int receive_message(Guide *guide, bool *terminate, int flags) {
     } else {
         if (strcmp(message.mtext, "terminate") == 0) {
             *terminate = true;
-        } else if (strcmp(message.mtext, "wake") != 0) {
+        } else {
             output_log(guide->semaphores, guide->shared_memory,
                 "receive_message: unknown message received from message queue");
         }
@@ -82,9 +82,8 @@ GuideRes guide_run(Guide *guide) {
     void *buffer = malloc(person_space);
 
     bool terminate = false;
-    bool empty = false;
     do {
-        take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+        /*take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
         int catwalk1_visitors = guide->shared_memory->catwalk1_visitors;
         int catwalk2_visitors = guide->shared_memory->catwalk2_visitors;
         empty = (catwalk1_visitors == 0) && (catwalk2_visitors == 0);
@@ -114,29 +113,22 @@ GuideRes guide_run(Guide *guide) {
                 output_log(guide->semaphores, guide->shared_memory,
                         "Guide %d has read PID: %d from the pipe", guide->number, visitor_on_catwalk.pid);
 
-                output_log(guide->semaphores, guide->shared_memory,
-            "g b %d %d", guide->shared_memory->catwalk1_visitors, guide->shared_memory->catwalk2_visitors);
                 if (catwalk_number == 1)
                     guide->shared_memory->catwalk1_visitors--;
                 else
                     guide->shared_memory->catwalk2_visitors--;
                 give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
-                output_log(guide->semaphores, guide->shared_memory,
-            "g %d %d", guide->shared_memory->catwalk1_visitors, guide->shared_memory->catwalk2_visitors);
                 
                 Message message = {0};
                 message.mtype = visitor_on_catwalk.pid;
                 msgsnd(guide->message_queue, &message, sizeof(message.mtext), 0);
             }
-        }
+        }*/
 
         usleep(1000);
 
-        //output_log(guide->semaphores, guide->shared_memory, "flags %d %d", terminate, empty);
-
-        if (!terminate)
-            receive_message(guide, &terminate, IPC_NOWAIT);
-    } while (!terminate || !empty);
+        receive_message(guide, &terminate, IPC_NOWAIT);
+    } while (!terminate);
 
     free(buffer);
 

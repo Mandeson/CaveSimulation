@@ -83,8 +83,9 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
             "Running ticket clerk (PID: %d)", pid);
 
     bool terminate = false;
-    bool empty;
     do {
+        usleep(TICKET_CLERK_DELAY * 1000);
+        
         int res;
         do {
             Message message;
@@ -125,12 +126,9 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
             give_semaphore(ticket_clerk->semaphores, TICKET_REGULAR_SEMAPHORE);
             ticket_clerk->shared_memory->regular_ticket_line_size--;
         }
-        empty = (ticket_clerk->shared_memory->visitors_count == 0);
 
         give_semaphore(ticket_clerk->semaphores, SHARED_MEMORY_SEMAPHORE);
-
-        usleep(TICKET_CLERK_DELAY * 1000);
-    } while (!terminate || !empty);
+    } while (!terminate);
 
     return TICKET_CLERK_SUCCESS;
 }

@@ -112,7 +112,13 @@ static void close_catwalk_pipe_output(const SharedMemory *shared_memory) {
 CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     bool error = false;
 
-    cave_simulation->shared_memory->terminating = true;
+    // Now do not wait for the ticket clerk and guides
+    for (int i = 0; i < cave_simulation->child_processes - (1 + 2); i++) {
+        if (wait(NULL) == -1) {
+            perror("cave_simulation_destroy: wait");
+            error = true;
+        }
+    }
 
     Message message = {0};
     strcpy(message.mtext, "terminate");
@@ -129,15 +135,15 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     if (msgsnd(cave_simulation->message_queue, (const void *)&message, sizeof(message.mtext), 0) == -1)
         perror("cave_simulation_destroy: msgsnd (Guide2)");
 
-    close_catwalk_pipe_input(cave_simulation->shared_memory);
-    close_catwalk_pipe_output(cave_simulation->shared_memory);
-
-    for (int i = 0; i < cave_simulation->child_processes; i++) {
+    for (int i = 0; i < 1 + 2; i++) {
         if (wait(NULL) == -1) {
             perror("cave_simulation_destroy: wait");
             error = true;
         }
     }
+
+    close_catwalk_pipe_input(cave_simulation->shared_memory);
+    close_catwalk_pipe_output(cave_simulation->shared_memory);
 
     output_log(cave_simulation->semaphores, cave_simulation->shared_memory,
             "Destroying cave simulation (PID: %d)", getpid());
@@ -233,10 +239,6 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
             }
         }
         cave_simulation->child_processes++;
-        
-        take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
-        cave_simulation->shared_memory->visitors_count++;
-        give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
 
         uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 1000);
         usleep(wait_time);

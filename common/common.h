@@ -17,7 +17,6 @@
 
 typedef struct {
     char output_file_name[256];
-    volatile bool terminating;
 
     int K; // capacity of the catwalks
 
@@ -32,7 +31,6 @@ typedef struct {
     int catwalk1_visitors;
     int catwalk2_visitors;
 
-    volatile int visitors_count;
     volatile int visitors_finished;
     volatile int priority_ticket_line_size;
     volatile int regular_ticket_line_size;
