@@ -11,6 +11,11 @@
 #include <unistd.h>
 #include "common.h"
 
+typedef enum {
+    PREPARE,
+
+} GuideState;
+
 GuideRes guide_init(Guide *guide) {
     SharedMemory *shared_memory = attach_shared_memory();
     if (shared_memory == NULL)
@@ -32,7 +37,7 @@ GuideRes guide_init(Guide *guide) {
     guide->semaphores = semaphores;
 
     take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
-    guide->number = ++guide->shared_memory->guides_count;
+    guide->number = guide->shared_memory->guides_count++;
     give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
     return GUIDE_SUCCESS;
@@ -73,30 +78,40 @@ static int receive_message(Guide *guide, bool *terminate, int flags) {
     return 0;
 }
 
+void open_gate(Guide *guide) {
+    int trail_semaphore = (guide->number == 1) ? TRAIL2_SEMAPHORE : TRAIL1_SEMAPHORE;
+    set_semaphore(guide->semaphores, trail_semaphore, guide->shared_memory->N[guide->number]);
+}
+
 GuideRes guide_run(Guide *guide) {
     pid_t pid = getpid();
     output_log(guide->semaphores, guide->shared_memory,
-            "Running guide (PID: %d, guide nr: %d)", pid, guide->number);
+            "Running guide (PID: %d, guide nr: %d)", pid, guide->number + 1);
     
     size_t person_space = PIPE_BUF / guide->shared_memory->K;
     void *buffer = malloc(person_space);
 
+    open_gate(guide);
+
     bool terminate = false;
     do {
-        /*take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
-        int catwalk1_visitors = guide->shared_memory->catwalk1_visitors;
-        int catwalk2_visitors = guide->shared_memory->catwalk2_visitors;
-        empty = (catwalk1_visitors == 0) && (catwalk2_visitors == 0);
-        int catwalk_number = 1;
-        if (catwalk2_visitors > catwalk1_visitors)
-            catwalk_number = 2;
+        usleep(1000);
+
+        take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+        volatile int *catwalk_visitors = guide->shared_memory->catwalk_visitors;
+        int catwalk_number = (catwalk_visitors[1] > catwalk_visitors[0]) ? 1 : 0;
+        bool empty = (catwalk_visitors[0] == 0) && (catwalk_visitors[1] == 0);
 
         if(empty) {
             give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
         } else {
-            int catwalk_pipe = (catwalk_number == 1) ? guide->shared_memory->catwalk1_pipe[0]
-                    : guide->shared_memory->catwalk2_pipe[0];
+            int catwalk_pipe = guide->shared_memory->catwalk_pipe[catwalk_number][0];
+            output_log(guide->semaphores, guide->shared_memory,
+                        "R %d %d %d %d", guide->number, catwalk_visitors[0], catwalk_visitors[1], catwalk_number);
             int res = read(catwalk_pipe, buffer, person_space);
+            catwalk_visitors[catwalk_number] -= 1;
+            output_log(guide->semaphores, guide->shared_memory,
+                        "RF %d %d %d %d", guide->number, catwalk_visitors[0], catwalk_visitors[1], catwalk_number);
             if (res == -1) {
                 perror("guide_run: read");
                 free(buffer);
@@ -113,19 +128,13 @@ GuideRes guide_run(Guide *guide) {
                 output_log(guide->semaphores, guide->shared_memory,
                         "Guide %d has read PID: %d from the pipe", guide->number, visitor_on_catwalk.pid);
 
-                if (catwalk_number == 1)
-                    guide->shared_memory->catwalk1_visitors--;
-                else
-                    guide->shared_memory->catwalk2_visitors--;
                 give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
                 
-                Message message = {0};
-                message.mtype = visitor_on_catwalk.pid;
-                msgsnd(guide->message_queue, &message, sizeof(message.mtext), 0);
+                // Message message = {0};
+                // message.mtype = visitor_on_catwalk.pid;
+                // msgsnd(guide->message_queue, &message, sizeof(message.mtext), 0);
             }
-        }*/
-
-        usleep(1000);
+        }
 
         receive_message(guide, &terminate, IPC_NOWAIT);
     } while (!terminate);

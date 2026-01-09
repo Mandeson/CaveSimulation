@@ -7,17 +7,20 @@
 #define MESSAGE_QUEUE_ID 60
 
 #define SEMAPHORES_ID 61
-#define NSEMAPHORES 4
+#define NSEMAPHORES 6
 #define OUTPUT_LOG_SEMAPHORE 0
 #define SHARED_MEMORY_SEMAPHORE 1
 #define TICKET_REGULAR_SEMAPHORE 2
 #define TICKET_PRIORITY_SEMAPHORE 3
+#define TRAIL1_SEMAPHORE 4
+#define TRAIL2_SEMAPHORE 5
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
 typedef struct {
     char output_file_name[256];
 
+    int N[2];
     int K; // capacity of the catwalks
 
     int ticket_clerk_pid;
@@ -27,8 +30,7 @@ typedef struct {
     int catwalk_pipe[2][2];
 
     // Number of visitors waiting to enter a catwalk or being currently on it
-    int catwalk1_visitors;
-    int catwalk2_visitors;
+    volatile int catwalk_visitors[2];
 
     volatile int visitors_finished;
     volatile int priority_ticket_line_size;
@@ -72,5 +74,7 @@ int detach_shared_memory(SharedMemory *shared_memory);
 int get_message_queue();
 int get_semaphores();
 int take_semaphore(int semaphores, int number);
+int take_semaphore_n(int semaphores, int number, int n);
 int give_semaphore(int semaphores, int number);
+int set_semaphore(int semaphores, int number, int n);
 void output_log(int semaphores, const SharedMemory *shared_memory, const char *format, ...);

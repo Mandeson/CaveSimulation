@@ -7,7 +7,7 @@
 #define CAVE_SIMULATION_MAX_VISITORS_DELAY 20
 
 typedef struct {
-    volatile bool terminating;
+    volatile bool interrupted;
     int shared_memory_id;
     int message_queue;
     int semaphores;

@@ -112,14 +112,17 @@ static void close_catwalk_pipe_output(const SharedMemory *shared_memory) {
 }
 
 CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
-    if (cave_simulation->terminating) {
+    //sleep(1);
+
+    //if (cave_simulation->interrupted) {
+        // Signal remaining visitors to terminate
         signal(SIGUSR1, SIG_IGN);
         kill(0, SIGUSR1);
-    }
+    //}
 
     bool error = false;
 
-    // Now do not wait for the ticket clerk and guides
+    // Wait only for visitors (not ticket clerk and guides)
     for (int i = 0; i < cave_simulation->child_processes - (1 + 2); i++) {
         if (wait(NULL) == -1) {
             perror("cave_simulation_destroy: wait");
@@ -145,6 +148,7 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     if (msgsnd(cave_simulation->message_queue, (const void *)&message, sizeof(message.mtext), 0) == -1)
         perror("cave_simulation_destroy: msgsnd (Guide2)");
 
+    // Wait for ticket clerk and guides
     for (int i = 0; i < 1 + 2; i++) {
         if (wait(NULL) == -1) {
             perror("cave_simulation_destroy: wait");
@@ -173,7 +177,10 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
 }
 
 static void init_parameters(CaveSimulation *cave_simulation) {
-    cave_simulation->shared_memory->K = 5;
+    SharedMemory *shared_memory = cave_simulation->shared_memory;
+    shared_memory->N[0] = 10;
+    shared_memory->N[1] = 10;
+    shared_memory->K = 5;
 }
 
 static int spawn_guide(CaveSimulation *cave_simulation) {
@@ -267,11 +274,11 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         }
         cave_simulation->shared_memory->visitors_finished = 0;
         give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
-    } while (!cave_simulation->terminating && time < 1000 * 1000 * 20);
+    } while (!cave_simulation->interrupted && time < 1000 * 1000 * 4);
 
     return CAVE_SIMULATION_SUCCESS;
 }
 
 void cave_simulation_terminate(CaveSimulation *cave_simulation) {
-    cave_simulation->terminating = true;
+    cave_simulation->interrupted = true;
 }
