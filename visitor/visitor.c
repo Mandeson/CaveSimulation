@@ -129,8 +129,11 @@ VisitorRes visitor_run(Visitor *visitor) {
     
     VisitorOnCatwalk on_catwalk;
     on_catwalk.pid = pid;
-    on_catwalk.children_count = children_count;
+    on_catwalk.trail_nr = ticket_message.trail_nr;
     memcpy(buffer, &on_catwalk, sizeof(VisitorOnCatwalk));
+
+    // Wait for a time proportional to the length of the catwalk to arrive at the other end
+    usleep(visitor->shared_memory->K * 1000);
 
     output_log(visitor->semaphores, visitor->shared_memory,
             "W %d %d %d", catwalk_visitors[0], catwalk_visitors[1], catwalk_number);
@@ -145,6 +148,7 @@ VisitorRes visitor_run(Visitor *visitor) {
 
     free(buffer);
 
+    // Wait for entering the catwalk
     // res = msgrcv(visitor->message_queue, &message, sizeof(message.mtext), pid, 0);
     // if (res == -1) {
     //     perror("visitor_run: msgrcv");
@@ -154,10 +158,6 @@ VisitorRes visitor_run(Visitor *visitor) {
     //             "visitor_run: wrong number of bytes received from message queue");
     //     return VISITOR_RUN_FAIL;
     // }
-
-
-    output_log(visitor->semaphores, visitor->shared_memory,
-            "Visitor (PID: %d) finishes", getpid());
 
     return VISITOR_SUCCESS;
 }

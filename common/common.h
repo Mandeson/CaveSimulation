@@ -29,9 +29,11 @@ typedef struct {
 
     int catwalk_pipe[2][2];
 
+    volatile bool terminating;
+
     // Number of visitors waiting to enter a catwalk or being currently on it
     volatile int catwalk_visitors[2];
-
+    volatile int visitors_approaching_catwalk;
     volatile int visitors_finished;
     volatile int priority_ticket_line_size;
     volatile int regular_ticket_line_size;
@@ -66,7 +68,7 @@ typedef struct {
 
 typedef struct {
     int pid;
-    int children_count;
+    int trail_nr;
 } VisitorOnCatwalk;
 
 SharedMemory *attach_shared_memory();

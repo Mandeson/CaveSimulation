@@ -62,6 +62,7 @@ static int receive_message(Guide *guide, bool *terminate, int flags) {
             perror("receive_message: msgrcv");
             return -1;
         }
+        return 0;
     } else if (res != sizeof(message.mtext)) {
         output_log(guide->semaphores, guide->shared_memory,
                 "receive_message: wrong number of bytes received from message queue");
@@ -70,12 +71,15 @@ static int receive_message(Guide *guide, bool *terminate, int flags) {
         if (strcmp(message.mtext, "terminate") == 0) {
             *terminate = true;
         } else {
-            output_log(guide->semaphores, guide->shared_memory,
-                "receive_message: unknown message received from message queue");
-        }
-    }
+            int visitor_pid;
+            memcpy(&visitor_pid, message.mtext, sizeof(visitor_pid));
 
-    return 0;
+            output_log(guide->semaphores, guide->shared_memory,
+                "Guide of trail %d greets visitor (PID: %d)", guide->number + 1, visitor_pid);
+        }
+
+        return 1;
+    }
 }
 
 void open_gate(Guide *guide) {
@@ -126,17 +130,29 @@ GuideRes guide_run(Guide *guide) {
                 VisitorOnCatwalk visitor_on_catwalk;
                 memcpy(&visitor_on_catwalk, buffer, sizeof(VisitorOnCatwalk));
                 output_log(guide->semaphores, guide->shared_memory,
-                        "Guide %d has read PID: %d from the pipe", guide->number, visitor_on_catwalk.pid);
+                        "Guide %d has read PID: %d from the pipe", guide->number + 1, visitor_on_catwalk.pid);
+
+                if (visitor_on_catwalk.pid != 0) {
+                    guide->shared_memory->visitors_approaching_catwalk--;
+
+                    // Send visitor pid to the specific trail guide
+                    Message message = {0};
+                    message.mtype = (visitor_on_catwalk.trail_nr == 2)
+                            ? guide->shared_memory->guide2_pid : guide->shared_memory->guide1_pid;
+                    memcpy(message.mtext, &visitor_on_catwalk.pid, sizeof(visitor_on_catwalk.pid));
+                    
+                    if (msgsnd(guide->message_queue, &message, sizeof(message.mtext), 0) == -1)
+                        perror("guide_run: msgsnd");
+                }
 
                 give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
-                
-                // Message message = {0};
-                // message.mtype = visitor_on_catwalk.pid;
-                // msgsnd(guide->message_queue, &message, sizeof(message.mtext), 0);
             }
         }
 
-        receive_message(guide, &terminate, IPC_NOWAIT);
+        int res;
+        do {
+            res = receive_message(guide, &terminate, IPC_NOWAIT);
+        } while (res == 1);
     } while (!terminate);
 
     free(buffer);
