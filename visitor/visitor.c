@@ -129,6 +129,7 @@ VisitorRes visitor_run(Visitor *visitor) {
     
     VisitorOnCatwalk on_catwalk;
     on_catwalk.pid = pid;
+    on_catwalk.children_count = children_count;
     on_catwalk.trail_nr = ticket_message.trail_nr;
     memcpy(buffer, &on_catwalk, sizeof(VisitorOnCatwalk));
 

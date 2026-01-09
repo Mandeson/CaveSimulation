@@ -1,10 +1,13 @@
 #pragma once
 
-#include "common.h"
 #include <stdbool.h>
+#include "common.h"
+#include "util/array.h"
 
 typedef struct {
     int number;
+    int trail_visitors_count;
+    Array trail_visitors;
 
     SharedMemory *shared_memory;
     int message_queue;

@@ -68,8 +68,14 @@ typedef struct {
 
 typedef struct {
     int pid;
+    int children_count;
     int trail_nr;
 } VisitorOnCatwalk;
+
+typedef struct {
+    int pid;
+    int children_count;
+} VisitorGuideMessage;
 
 SharedMemory *attach_shared_memory();
 int detach_shared_memory(SharedMemory *shared_memory);

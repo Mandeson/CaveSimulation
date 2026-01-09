@@ -10,13 +10,11 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include "common.h"
-
-typedef enum {
-    PREPARE,
-
-} GuideState;
+#include "util/array.h"
 
 GuideRes guide_init(Guide *guide) {
+    array_create(&guide->trail_visitors, sizeof(int));
+
     SharedMemory *shared_memory = attach_shared_memory();
     if (shared_memory == NULL)
         return GUIDE_INIT_FAIL;
@@ -50,6 +48,8 @@ GuideRes guide_destroy(Guide *guide) {
     if (detach_shared_memory(guide->shared_memory) == -1)
         return GUIDE_DESTROY_FAIL;
 
+    array_destroy(&guide->trail_visitors);
+
     return GUIDE_SUCCESS;
 }
 
@@ -71,11 +71,16 @@ static int receive_message(Guide *guide, bool *terminate, int flags) {
         if (strcmp(message.mtext, "terminate") == 0) {
             *terminate = true;
         } else {
-            int visitor_pid;
-            memcpy(&visitor_pid, message.mtext, sizeof(visitor_pid));
+            VisitorGuideMessage visitor_guide_message;
+            memcpy(&visitor_guide_message, message.mtext, sizeof(visitor_guide_message));
 
             output_log(guide->semaphores, guide->shared_memory,
-                "Guide of trail %d greets visitor (PID: %d)", guide->number + 1, visitor_pid);
+                    "Guide of trail %d greets visitor (PID: %d, children: %d)", guide->number + 1,
+                    visitor_guide_message.pid, visitor_guide_message.children_count);
+
+            guide->trail_visitors_count += 1 + visitor_guide_message.children_count;
+            int *new_element = array_add_empty(&guide->trail_visitors);
+            *new_element = visitor_guide_message.pid;
         }
 
         return 1;
@@ -136,10 +141,14 @@ GuideRes guide_run(Guide *guide) {
                     guide->shared_memory->visitors_approaching_catwalk--;
 
                     // Send visitor pid to the specific trail guide
+                    VisitorGuideMessage visitor_guide_message;
+                    visitor_guide_message.pid = visitor_on_catwalk.pid;
+                    visitor_guide_message.children_count = visitor_on_catwalk.children_count;
+
                     Message message = {0};
                     message.mtype = (visitor_on_catwalk.trail_nr == 2)
                             ? guide->shared_memory->guide2_pid : guide->shared_memory->guide1_pid;
-                    memcpy(message.mtext, &visitor_on_catwalk.pid, sizeof(visitor_on_catwalk.pid));
+                    memcpy(message.mtext, &visitor_guide_message, sizeof(visitor_guide_message));
                     
                     if (msgsnd(guide->message_queue, &message, sizeof(message.mtext), 0) == -1)
                         perror("guide_run: msgsnd");
