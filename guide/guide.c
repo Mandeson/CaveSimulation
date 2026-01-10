@@ -92,6 +92,27 @@ void open_gate(Guide *guide) {
     set_semaphore(guide->semaphores, trail_semaphore, guide->shared_memory->N[guide->number]);
 }
 
+void guide_tour(Guide *guide) {
+    output_log(guide->semaphores, guide->shared_memory,
+            "Guide of trail %d is starting the tour", guide->number + 1);
+
+    for (size_t i = 0; i < guide->trail_visitors.size; i++) {
+        int visitor_pid = ((int *)guide->trail_visitors.ptr)[i];
+        Message message = {0};
+        message.mtype = visitor_pid;
+        
+        if (msgsnd(guide->message_queue, &message, sizeof(message.mtext), 0) == -1)
+            perror("guide_run: msgsnd (Visitor)");
+    }
+
+    usleep(guide->shared_memory->T[guide->number] * 1000);
+
+    array_clear(&guide->trail_visitors);
+    guide->trail_visitors_count = 0;
+
+    open_gate(guide);
+}
+
 GuideRes guide_run(Guide *guide) {
     pid_t pid = getpid();
     output_log(guide->semaphores, guide->shared_memory,
@@ -107,6 +128,14 @@ GuideRes guide_run(Guide *guide) {
         usleep(1000);
 
         take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+
+        bool tour_start = false;
+        if (guide->trail_visitors_count == guide->shared_memory->N[guide->number]
+                    || (guide->shared_memory->terminating
+                        && guide->shared_memory->visitors_approaching_catwalk == 0)) {
+            tour_start = true;
+        }
+
         volatile int *catwalk_visitors = guide->shared_memory->catwalk_visitors;
         int catwalk_number = (catwalk_visitors[1] > catwalk_visitors[0]) ? 1 : 0;
         bool empty = (catwalk_visitors[0] == 0) && (catwalk_visitors[1] == 0);
@@ -157,6 +186,9 @@ GuideRes guide_run(Guide *guide) {
                 give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
             }
         }
+
+        if (tour_start)
+            guide_tour(guide);
 
         int res;
         do {

@@ -149,16 +149,19 @@ VisitorRes visitor_run(Visitor *visitor) {
 
     free(buffer);
 
-    // Wait for entering the catwalk
-    // res = msgrcv(visitor->message_queue, &message, sizeof(message.mtext), pid, 0);
-    // if (res == -1) {
-    //     perror("visitor_run: msgrcv");
-    //     return VISITOR_RUN_FAIL;
-    // } else if (res != sizeof(message.mtext)) {
-    //     output_log(visitor->semaphores, visitor->shared_memory,
-    //             "visitor_run: wrong number of bytes received from message queue");
-    //     return VISITOR_RUN_FAIL;
-    // }
+    // Wait for the tour to start
+    res = msgrcv(visitor->message_queue, &message, sizeof(message.mtext), pid, 0);
+    if (res == -1) {
+        perror("visitor_run: msgrcv");
+        return VISITOR_RUN_FAIL;
+    } else if (res != sizeof(message.mtext)) {
+        output_log(visitor->semaphores, visitor->shared_memory,
+                "visitor_run: wrong number of bytes received from message queue");
+        return VISITOR_RUN_FAIL;
+    }
+
+    output_log(visitor->semaphores, visitor->shared_memory,
+            "Visitor (PID: %d) is starting the tour", pid);
 
     return VISITOR_SUCCESS;
 }

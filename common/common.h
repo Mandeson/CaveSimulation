@@ -21,6 +21,7 @@ typedef struct {
     char output_file_name[256];
 
     int N[2];
+    int T[2];
     int K; // capacity of the catwalks
 
     int ticket_clerk_pid;
