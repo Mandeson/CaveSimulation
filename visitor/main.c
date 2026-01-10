@@ -4,10 +4,10 @@
 
 Visitor visitor;
 
-void sigint_handler(int);
+void sigusr1_handler(int);
 
 int main(void) {
-    signal(SIGUSR1, sigint_handler);
+    signal(SIGUSR1, sigusr1_handler);
     signal(SIGPIPE, SIG_IGN);
 
     VisitorRes res = visitor_init(&visitor);
@@ -25,11 +25,8 @@ int main(void) {
         return destroy_res;
 }
 
-void sigint_handler(int sig) {
+void sigusr1_handler(int sig) {
     (void)sig;
-
-    // puts("Visitor interrupt");
-    // fflush(stdout);
 
     VisitorRes destroy_res = visitor_destroy(&visitor);
     exit(destroy_res);

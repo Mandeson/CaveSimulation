@@ -116,21 +116,27 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     cave_simulation->shared_memory->terminating = true;
     give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
 
-    //if (cave_simulation->interrupted) {
+    if (cave_simulation->interrupted) {
         // Signal remaining visitors to terminate
-        signal(SIGUSR1, SIG_IGN);
-        kill(0, SIGUSR1);
-    //}
+        
+    }
+
+    output_log(cave_simulation->semaphores, cave_simulation->shared_memory,
+            "Destroying cave simulation");
 
     bool error = false;
 
-    // Wait only for visitors (not ticket clerk and guides)
-    for (int i = 0; i < cave_simulation->child_processes - (1 + 2); i++) {
+    // Wait only for visitors (not ticket clerk, guides only if interrupted)
+    int wait_processes = cave_simulation->child_processes - 1;
+    if (!cave_simulation->interrupted)
+        wait_processes -= 2;
+    for (int i = 0; i < wait_processes; i++) {
         if (wait(NULL) == -1) {
             perror("cave_simulation_destroy: wait");
             error = true;
         }
     }
+    cave_simulation->child_processes -= wait_processes;
 
     output_log(cave_simulation->semaphores, cave_simulation->shared_memory,
             "Finished destroying visitors");
@@ -150,8 +156,8 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     if (msgsnd(cave_simulation->message_queue, (const void *)&message, sizeof(message.mtext), 0) == -1)
         perror("cave_simulation_destroy: msgsnd (Guide2)");
 
-    // Wait for ticket clerk and guides
-    for (int i = 0; i < 1 + 2; i++) {
+    // Wait for ticket clerk and guides (if not interrupted)
+    for (int i = 0; i < cave_simulation->child_processes; i++) {
         if (wait(NULL) == -1) {
             perror("cave_simulation_destroy: wait");
             error = true;
@@ -233,6 +239,11 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     cave_simulation->child_processes++;
     cave_simulation->shared_memory->ticket_clerk_pid = fork_res;
 
+    setpgid(0, 0);
+    signal(SIGUSR1, SIG_DFL);
+
+    //take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
+
     int res1 = spawn_guide(cave_simulation);
     int res2 = spawn_guide(cave_simulation);
     if (res1 == -1 || res2 == -1)
@@ -241,24 +252,14 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     cave_simulation->shared_memory->guide1_pid = res1;
     cave_simulation->shared_memory->guide2_pid = res2;
 
+    //give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
+
     uint64_t time = 0;
 
-    setpgid(0, 0);
-    signal(SIGUSR1, SIG_DFL);
-
     do {
-        take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
-        cave_simulation->shared_memory->visitors_approaching_catwalk++;
-        give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
-        
         fork_res = fork();
         if (fork_res == -1) {
             perror("cave_simulation_run: fork (Visitor)");
-
-            take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
-            cave_simulation->shared_memory->visitors_approaching_catwalk--;
-            give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
-            
             return CAVE_SIMULATION_RUN_FAIL;
         }
         if (fork_res == 0) {
@@ -268,11 +269,6 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
 
             if (execl("./Visitor", "Visitor", NULL) == -1) {
                 perror("cave_simulation_run: execl (Visitor)");
-
-                take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
-                cave_simulation->shared_memory->visitors_approaching_catwalk--;
-                give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
-
                 return CAVE_SIMULATION_RUN_FAIL;
             }
         }
@@ -299,4 +295,6 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
 
 void cave_simulation_terminate(CaveSimulation *cave_simulation) {
     cave_simulation->interrupted = true;
+    signal(SIGUSR1, SIG_IGN);
+    kill(0, SIGUSR1);
 }

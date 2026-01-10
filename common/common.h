@@ -34,11 +34,9 @@ typedef struct {
 
     // Number of visitors waiting to enter a catwalk or being currently on it
     volatile int catwalk_visitors[2];
-    volatile int visitors_approaching_catwalk;
     volatile int visitors_finished;
     volatile int priority_ticket_line_size;
     volatile int regular_ticket_line_size;
-    volatile int guides_count;
 } SharedMemory;
 
 typedef struct {

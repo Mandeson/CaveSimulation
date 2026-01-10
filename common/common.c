@@ -108,8 +108,13 @@ int give_semaphore(int semaphores, int number) {
 }
 
 int set_semaphore(int semaphores, int number, int n) {
-    if (semctl(semaphores, number, SETVAL, n) == -1) {
-        perror("set_semaphore: semctl");
+    struct sembuf op;
+    op.sem_num = number;
+    op.sem_op = n;
+    op.sem_flg = 0;
+
+    if (semop(semaphores, &op, 1) == -1) {
+        perror("give_semaphore_n: semop");
         return -1;
     }
 
