@@ -71,17 +71,17 @@ int take_semaphore(int semaphores, int number) {
     op.sem_op = -1;
     op.sem_flg = 0;//SEM_UNDO;
 
-    /*if (number == SHARED_MEMORY_SEMAPHORE) {
-        take_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
-        printf("PID: %d takes shm semaphore\n", getpid());
-        fflush(stdout);
-        give_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
-    }*/
-
     if (semop(semaphores, &op, 1) == -1) {
         perror("take_semaphore: semop");
         return -1;
     }
+
+    // if (number == SHARED_MEMORY_SEMAPHORE) {
+    //     take_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
+    //     printf("PID: %d takes shm semaphore\n", getpid());
+    //     fflush(stdout);
+    //     give_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
+    // }
 
     return 0;
 }
@@ -106,12 +106,12 @@ int give_semaphore(int semaphores, int number) {
     op.sem_op = 1;
     op.sem_flg = 0;//SEM_UNDO;
 
-    /*if (number == SHARED_MEMORY_SEMAPHORE) {
-        take_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
-        printf("PID: %d gives shm semaphore\n", getpid());
-        fflush(stdout);
-        give_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
-    }*/
+    // if (number == SHARED_MEMORY_SEMAPHORE) {
+    //     take_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
+    //     printf("PID: %d gives shm semaphore\n", getpid());
+    //     fflush(stdout);
+    //     give_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
+    // }
 
     if (semop(semaphores, &op, 1) == -1) {
         perror("give_semaphore: semop");

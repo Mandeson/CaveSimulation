@@ -41,10 +41,14 @@ static int init_semaphores(int semaphores) {
     }
 
     if (semctl(semaphores, PIPE_WRITE_SEMAPHORE, SETVAL, 1) == -1) {
-        perror("init_semaphores: semctl (SHARED_MEMORY_SEMAPHORE)");
+        perror("init_semaphores: semctl (PIPE_WRITE_SEMAPHORE)");
         return -1;
     }
 
+    if (semctl(semaphores, PIPE_READ_SEMAPHORE, SETVAL, 1) == -1) {
+        perror("init_semaphores: semctl (PIPE_READ_SEMAPHORE)");
+        return -1;
+    }
 
     return 0;
 }
