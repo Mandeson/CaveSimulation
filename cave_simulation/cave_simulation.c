@@ -40,6 +40,12 @@ static int init_semaphores(int semaphores) {
         return -1;
     }
 
+    if (semctl(semaphores, PIPE_WRITE_SEMAPHORE, SETVAL, 1) == -1) {
+        perror("init_semaphores: semctl (SHARED_MEMORY_SEMAPHORE)");
+        return -1;
+    }
+
+
     return 0;
 }
 

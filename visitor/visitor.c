@@ -137,11 +137,14 @@ VisitorRes visitor_run(Visitor *visitor) {
     // Wait for a time proportional to the length of the catwalk to arrive at the other end
     usleep(visitor->shared_memory->K * 1000);
 
+    take_semaphore(visitor->semaphores, PIPE_WRITE_SEMAPHORE);
+
     output_log(visitor->semaphores, visitor->shared_memory,
             "W %d %d %d", catwalk_visitors[0], catwalk_visitors[1], catwalk_number);
     res = write(catwalk_pipe, buffer, space);
     if (res == -1) {
         perror("visitor_run: write");
+        give_semaphore(visitor->semaphores, PIPE_WRITE_SEMAPHORE);
         free(buffer);
         free(buffer_empty);
         return VISITOR_RUN_FAIL;
@@ -150,6 +153,7 @@ VisitorRes visitor_run(Visitor *visitor) {
         res = write(catwalk_pipe, buffer_empty, space);
         if (res == -1) {
             perror("visitor_run: write");
+            give_semaphore(visitor->semaphores, PIPE_WRITE_SEMAPHORE);
             free(buffer);
             free(buffer_empty);
             return VISITOR_RUN_FAIL;
@@ -157,6 +161,8 @@ VisitorRes visitor_run(Visitor *visitor) {
     }
     output_log(visitor->semaphores, visitor->shared_memory,
             "WF %d %d %d", catwalk_visitors[0], catwalk_visitors[1], catwalk_number);
+
+    give_semaphore(visitor->semaphores, PIPE_WRITE_SEMAPHORE);
 
     // Wait for the tour to start
     res = msgrcv(visitor->message_queue, &message, sizeof(message.mtext), pid, 0);
@@ -191,14 +197,17 @@ VisitorRes visitor_run(Visitor *visitor) {
     catwalk_visitors[catwalk_number] += 1 + children_count;
 
     catwalk_pipe = visitor->shared_memory->catwalk_pipe[catwalk_number][1];
+    give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
 
     output_log(visitor->semaphores, visitor->shared_memory,
             "Visitor (PID: %d) trying to exit the cave using the catwalk %d", pid, catwalk_number);
     
+    take_semaphore(visitor->semaphores, PIPE_WRITE_SEMAPHORE);
+
     res = write(catwalk_pipe, buffer, space);
     if (res == -1) {
         perror("visitor_run: write");
-        give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+        give_semaphore(visitor->semaphores, PIPE_WRITE_SEMAPHORE);
         free(buffer);
         free(buffer_empty);
         return VISITOR_RUN_FAIL;
@@ -211,7 +220,7 @@ VisitorRes visitor_run(Visitor *visitor) {
         res = write(catwalk_pipe, buffer_empty, space);
         if (res == -1) {
             perror("visitor_run: write");
-            give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+            give_semaphore(visitor->semaphores, PIPE_WRITE_SEMAPHORE);
             free(buffer);
             free(buffer_empty);
             return VISITOR_RUN_FAIL;
@@ -220,7 +229,8 @@ VisitorRes visitor_run(Visitor *visitor) {
         output_log(visitor->semaphores, visitor->shared_memory,
             "Visitor (PID: %d) written %d", res);
     }
-    give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+    
+    give_semaphore(visitor->semaphores, PIPE_WRITE_SEMAPHORE);
 
     free(buffer);
     free(buffer_empty);
