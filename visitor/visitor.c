@@ -122,9 +122,10 @@ VisitorRes visitor_run(Visitor *visitor) {
     output_log(visitor->semaphores, visitor->shared_memory,
             "Visitor (PID: %d) trying to enter catwalk %d", pid, catwalk_number);
 
-    size_t person_space = PIPE_BUF / visitor->shared_memory->K;
-    size_t space = person_space * (1 + children_count);
+    size_t space = PIPE_BUF / visitor->shared_memory->K;
     void *buffer = malloc(space);
+    memset(buffer, 0, space);
+    void *buffer_empty = malloc(space);
     memset(buffer, 0, space);
     
     VisitorOnCatwalk on_catwalk;
@@ -142,12 +143,20 @@ VisitorRes visitor_run(Visitor *visitor) {
     if (res == -1) {
         perror("visitor_run: write");
         free(buffer);
+        free(buffer_empty);
         return VISITOR_RUN_FAIL;
+    }
+    for (int i = 0; i < children_count; i++) {
+        res = write(catwalk_pipe, buffer_empty, space);
+        if (res == -1) {
+            perror("visitor_run: write");
+            free(buffer);
+            free(buffer_empty);
+            return VISITOR_RUN_FAIL;
+        }
     }
     output_log(visitor->semaphores, visitor->shared_memory,
             "WF %d %d %d", catwalk_visitors[0], catwalk_visitors[1], catwalk_number);
-
-    free(buffer);
 
     // Wait for the tour to start
     res = msgrcv(visitor->message_queue, &message, sizeof(message.mtext), pid, 0);
@@ -162,6 +171,61 @@ VisitorRes visitor_run(Visitor *visitor) {
 
     output_log(visitor->semaphores, visitor->shared_memory,
             "Visitor (PID: %d) is starting the tour", pid);
+
+    // Wait for the tour to end
+    res = msgrcv(visitor->message_queue, &message, sizeof(message.mtext), pid, 0);
+    if (res == -1) {
+        perror("visitor_run: msgrcv");
+        return VISITOR_RUN_FAIL;
+    } else if (res != sizeof(message.mtext)) {
+        output_log(visitor->semaphores, visitor->shared_memory,
+                "visitor_run: wrong number of bytes received from message queue");
+        return VISITOR_RUN_FAIL;
+    }
+
+    output_log(visitor->semaphores, visitor->shared_memory,
+            "Visitor (PID: %d) finished the tour", pid);
+
+    take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+    catwalk_number = (catwalk_visitors[1] < catwalk_visitors[0]) ? 1 : 0;
+    catwalk_visitors[catwalk_number] += 1 + children_count;
+
+    catwalk_pipe = visitor->shared_memory->catwalk_pipe[catwalk_number][1];
+
+    output_log(visitor->semaphores, visitor->shared_memory,
+            "Visitor (PID: %d) trying to exit the cave using the catwalk %d", pid, catwalk_number);
+    
+    res = write(catwalk_pipe, buffer, space);
+    if (res == -1) {
+        perror("visitor_run: write");
+        give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+        free(buffer);
+        free(buffer_empty);
+        return VISITOR_RUN_FAIL;
+    }
+
+    output_log(visitor->semaphores, visitor->shared_memory,
+            "Visitor (PID: %d) written %d", pid, res);
+
+    for (int i = 0; i < children_count; i++) {
+        res = write(catwalk_pipe, buffer_empty, space);
+        if (res == -1) {
+            perror("visitor_run: write");
+            give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+            free(buffer);
+            free(buffer_empty);
+            return VISITOR_RUN_FAIL;
+        }
+
+        output_log(visitor->semaphores, visitor->shared_memory,
+            "Visitor (PID: %d) written %d", res);
+    }
+    give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+
+    free(buffer);
+    free(buffer_empty);
+
+    //sleep(100000);
 
     return VISITOR_SUCCESS;
 }

@@ -2,6 +2,8 @@
 #include <errno.h>
 #include <linux/limits.h>
 #include <stdbool.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,10 +53,10 @@ GuideRes guide_destroy(Guide *guide) {
     return GUIDE_SUCCESS;
 }
 
-static int receive_message(Guide *guide, bool *terminate, int flags) {
+static int receive_message(Guide *guide) {
     Message message;
     int res = msgrcv(guide->message_queue, (void *)&message, sizeof(message.mtext), getpid(),
-            flags);
+            IPC_NOWAIT);
     if (res == -1) {
         if (errno != ENOMSG) {
             perror("receive_message: msgrcv");
@@ -67,7 +69,9 @@ static int receive_message(Guide *guide, bool *terminate, int flags) {
         return -1;
     } else {
         if (strcmp(message.mtext, "terminate") == 0) {
-            *terminate = true;
+            take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+            guide->shared_memory->guides_finished++;
+            give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
         } else {
             VisitorGuideMessage visitor_guide_message;
             memcpy(&visitor_guide_message, message.mtext, sizeof(visitor_guide_message));
@@ -87,12 +91,21 @@ static int receive_message(Guide *guide, bool *terminate, int flags) {
 
 void open_gate(Guide *guide) {
     int trail_semaphore = (guide->number == 1) ? TRAIL2_SEMAPHORE : TRAIL1_SEMAPHORE;
-    set_semaphore(guide->semaphores, trail_semaphore, guide->shared_memory->N[guide->number]);
+    give_semaphore_n(guide->semaphores, trail_semaphore, guide->shared_memory->N[guide->number]);
 }
 
-void guide_tour(Guide *guide) {
+void guide_tour(Guide *guide, size_t person_space, void *buffer) {
     output_log(guide->semaphores, guide->shared_memory,
             "Guide of trail %d is starting the tour", guide->number + 1);
+
+    // int trail_semaphore = (guide->number == 1) ? TRAIL2_SEMAPHORE : TRAIL1_SEMAPHORE;
+    // set_semaphore(guide->semaphores, trail_semaphore, 0);
+
+    take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+    guide->shared_memory->guides_using_catwalks--;
+    if (guide->shared_memory->guides_using_catwalks == 0)
+        give_semaphore(guide->semaphores, CATWALK_DIRECTION_SEMAPHORE);
+    give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
     for (size_t i = 0; i < guide->trail_visitors.size; i++) {
         int visitor_pid = ((int *)guide->trail_visitors.ptr)[i];
@@ -105,8 +118,101 @@ void guide_tour(Guide *guide) {
 
     usleep(guide->shared_memory->T[guide->number] * 1000);
 
+    take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+
+    // If there are no more visitors
+    if (guide->shared_memory->guides_finished == 2) {
+        give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+        return;
+    }
+
+    if (guide->shared_memory->guides_using_catwalks != 0
+            && guide->shared_memory->catwalk_direction == IN) {
+        while (semctl(guide->semaphores, CATWALK_DIRECTION_SEMAPHORE, GETVAL) > 0)
+            take_semaphore(guide->semaphores, CATWALK_DIRECTION_SEMAPHORE);
+        output_log(guide->semaphores, guide->shared_memory,
+            "Guide of trail %d wait1, sem: %d", guide->number + 1, 
+        semctl(guide->semaphores, CATWALK_DIRECTION_SEMAPHORE, GETVAL));
+        give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+        take_semaphore(guide->semaphores, CATWALK_DIRECTION_SEMAPHORE);
+        take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+        output_log(guide->semaphores, guide->shared_memory,
+            "Guide of trail %d end wait1", guide->number + 1);
+    }
+    guide->shared_memory->catwalk_direction = OUT;
+    guide->shared_memory->guides_using_catwalks++;
+
+    for (size_t i = 0; i < guide->trail_visitors.size; i++) {
+        int visitor_pid = ((int *)guide->trail_visitors.ptr)[i];
+        Message message = {0};
+        message.mtype = visitor_pid;
+        
+        if (msgsnd(guide->message_queue, &message, sizeof(message.mtext), 0) == -1)
+            perror("guide_run: msgsnd (Visitor)");
+    }
+
+    output_log(guide->semaphores, guide->shared_memory,
+            "Guide of trail %d started reading from pipe", guide->number + 1);
+
+    for (int i = 0; i < guide->trail_visitors_count; i++) {
+        volatile int *catwalk_visitors = guide->shared_memory->catwalk_visitors;
+        int catwalk_number = (catwalk_visitors[1] > catwalk_visitors[0]) ? 1 : 0;
+        int catwalk_pipe = guide->shared_memory->catwalk_pipe[catwalk_number][0];
+        catwalk_visitors[catwalk_number]--;
+
+        output_log(guide->semaphores, guide->shared_memory,
+            "Reading catwalk %d", catwalk_number);
+
+        int nbytes = 0;
+        if (ioctl(catwalk_pipe, FIONREAD, &nbytes) == -1) {
+            perror("ioctl(FIONREAD)");
+        } else {
+            output_log(guide->semaphores, guide->shared_memory,
+            "Bytes available %d", nbytes);
+        }
+
+        give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+        int res = read(catwalk_pipe, buffer, person_space);
+        take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+        output_log(guide->semaphores, guide->shared_memory,
+            "Read %d", res);
+        if (res == -1) {
+            perror("guide_tour: read");
+            break;
+        }
+        if ((size_t)res != person_space) {
+            output_log(guide->semaphores, guide->shared_memory,
+                    "Guide error: pipe read size mismatch");
+        }
+    }
+
+    output_log(guide->semaphores, guide->shared_memory,
+            "Guide of trail %d finished reading from pipe", guide->number + 1);
+
+    guide->shared_memory->guides_using_catwalks--;
+    if (guide->shared_memory->guides_using_catwalks == 0)
+        give_semaphore(guide->semaphores, CATWALK_IN_SEMAPHORE);
+    else {
+        while (semctl(guide->semaphores, CATWALK_IN_SEMAPHORE, GETVAL) > 0)
+            take_semaphore(guide->semaphores, CATWALK_IN_SEMAPHORE);
+        output_log(guide->semaphores, guide->shared_memory,
+            "Guide of trail %d wait2, sem: %d", guide->number + 1, 
+        semctl(guide->semaphores, CATWALK_IN_SEMAPHORE, GETVAL));
+        give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+        take_semaphore(guide->semaphores, CATWALK_IN_SEMAPHORE);
+        take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+        output_log(guide->semaphores, guide->shared_memory,
+            "Guide of trail %d end wait2", guide->number + 1);
+    }
+    guide->shared_memory->catwalk_direction = IN;
+    guide->shared_memory->guides_using_catwalks++;
+    give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+
     array_clear(&guide->trail_visitors);
     guide->trail_visitors_count = 0;
+
+    output_log(guide->semaphores, guide->shared_memory,
+            "Guide of trail %d opening the gate", guide->number + 1);
 
     open_gate(guide);
 }
@@ -129,6 +235,9 @@ GuideRes guide_run(Guide *guide) {
         timeout_counter += sleep_time;
 
         take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+
+        if (guide->shared_memory->guides_finished == 2)
+            terminate = true;
 
         bool tour_start = false;
         int timeout = (guide->shared_memory->T[guide->number]);
@@ -158,24 +267,38 @@ GuideRes guide_run(Guide *guide) {
             output_log(guide->semaphores, guide->shared_memory,
                         "RF %d %d %d %d", guide->number, catwalk_visitors[0], catwalk_visitors[1], catwalk_number);
 
-            give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
-
             if (res == -1) {
                 perror("guide_run: read");
+                give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
                 free(buffer);
-                
                 return GUIDE_RUN_FAIL;
             }
             if ((size_t)res != person_space) {
                 output_log(guide->semaphores, guide->shared_memory,
                         "Guide error: pipe read size mismatch");
+                give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
             } else {
                 VisitorOnCatwalk visitor_on_catwalk;
                 memcpy(&visitor_on_catwalk, buffer, sizeof(VisitorOnCatwalk));
                 output_log(guide->semaphores, guide->shared_memory,
                         "Guide %d has read PID: %d from the pipe", guide->number + 1, visitor_on_catwalk.pid);
 
-                if (visitor_on_catwalk.pid != 0) {
+                for (int i = 0; i < visitor_on_catwalk.children_count; i++) {
+                    int res = read(catwalk_pipe, buffer, person_space);
+                    if (res == -1) {
+                        perror("guide_run: read");
+                        give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+                        free(buffer);
+                        return GUIDE_RUN_FAIL;
+                    }
+                    catwalk_visitors[catwalk_number] -= 1;
+                    VisitorOnCatwalk tmp;
+                    memcpy(&tmp, buffer, sizeof(VisitorOnCatwalk));
+                    output_log(guide->semaphores, guide->shared_memory,
+                        "Guide %d has read PID: %d (child) from the pipe", guide->number + 1, tmp.pid);
+                }
+
+                // if (visitor_on_catwalk.pid != 0) {
                     // Send visitor pid to the specific trail guide
                     VisitorGuideMessage visitor_guide_message;
                     visitor_guide_message.pid = visitor_on_catwalk.pid;
@@ -188,18 +311,20 @@ GuideRes guide_run(Guide *guide) {
                     
                     if (msgsnd(guide->message_queue, &message, sizeof(message.mtext), 0) == -1)
                         perror("guide_run: msgsnd");
-                }
+                // }
+
+                give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
             }
         }
 
         if (tour_start) {
             timeout_counter = 0;
-            guide_tour(guide);
+            guide_tour(guide, person_space, buffer);
         }
 
         int res;
         do {
-            res = receive_message(guide, &terminate, IPC_NOWAIT);
+            res = receive_message(guide);
         } while (res == 1);
     } while (!terminate);
 

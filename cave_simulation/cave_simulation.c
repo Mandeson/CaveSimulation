@@ -25,6 +25,8 @@ static void init_shared_memory(SharedMemory *shared_memory) {
     snprintf(shared_memory->output_file_name, sizeof(shared_memory->output_file_name),
             "CaveSimulation_log_%d-%02d-%02d_%02d:%02d:%02d.txt", tm.tm_year + 1900, tm.tm_mon + 1,
             tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+    shared_memory->guides_using_catwalks = 2;
 }
 
 static int init_semaphores(int semaphores) {
@@ -186,11 +188,11 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
 
 static void init_parameters(CaveSimulation *cave_simulation) {
     SharedMemory *shared_memory = cave_simulation->shared_memory;
-    shared_memory->N[0] = 10;
-    shared_memory->N[1] = 10;
-    shared_memory->T[0] = 1000;
-    shared_memory->T[1] = 1000;
-    shared_memory->K = 5;
+    shared_memory->N[0] = 5;
+    shared_memory->N[1] = 5;
+    shared_memory->T[0] = 100;
+    shared_memory->T[1] = 100;
+    shared_memory->K = 3;
 }
 
 static int spawn_guide(CaveSimulation *cave_simulation) {
@@ -284,11 +286,11 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         cave_simulation->shared_memory->visitors_finished = 0;
         give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
 
-        uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 1000);
+        uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 10 * 1000);
         usleep(wait_time);
 
         time += wait_time;
-    } while (!cave_simulation->interrupted && time < 1000 * 1000 * 2);
+    } while (!cave_simulation->interrupted && time < 1000 * 1000 * 20);
 
     return CAVE_SIMULATION_SUCCESS;
 }

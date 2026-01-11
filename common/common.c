@@ -69,7 +69,14 @@ int take_semaphore(int semaphores, int number) {
     struct sembuf op;
     op.sem_num = number;
     op.sem_op = -1;
-    op.sem_flg = SEM_UNDO;
+    op.sem_flg = 0;//SEM_UNDO;
+
+    /*if (number == SHARED_MEMORY_SEMAPHORE) {
+        take_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
+        printf("PID: %d takes shm semaphore\n", getpid());
+        fflush(stdout);
+        give_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
+    }*/
 
     if (semop(semaphores, &op, 1) == -1) {
         perror("take_semaphore: semop");
@@ -97,7 +104,14 @@ int give_semaphore(int semaphores, int number) {
     struct sembuf op;
     op.sem_num = number;
     op.sem_op = 1;
-    op.sem_flg = SEM_UNDO;
+    op.sem_flg = 0;//SEM_UNDO;
+
+    /*if (number == SHARED_MEMORY_SEMAPHORE) {
+        take_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
+        printf("PID: %d gives shm semaphore\n", getpid());
+        fflush(stdout);
+        give_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
+    }*/
 
     if (semop(semaphores, &op, 1) == -1) {
         perror("give_semaphore: semop");
@@ -107,13 +121,22 @@ int give_semaphore(int semaphores, int number) {
     return 0;
 }
 
-int set_semaphore(int semaphores, int number, int n) {
+int give_semaphore_n(int semaphores, int number, int n) {
     struct sembuf op;
     op.sem_num = number;
     op.sem_op = n;
     op.sem_flg = 0;
 
     if (semop(semaphores, &op, 1) == -1) {
+        perror("give_semaphore_n: semop");
+        return -1;
+    }
+
+    return 0;
+}
+
+int set_semaphore(int semaphores, int number, int n) {
+    if (semctl(semaphores, number, SETVAL, n) == -1) {
         perror("give_semaphore_n: semop");
         return -1;
     }
