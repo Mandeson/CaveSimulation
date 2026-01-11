@@ -38,7 +38,7 @@ typedef struct {
     // Number of visitors waiting to enter a catwalk or being currently on it
     volatile int catwalk_visitors[2];
 
-    volatile enum : uint8_t {
+    volatile enum {
         IN = 0,
         OUT
     } catwalk_direction;
