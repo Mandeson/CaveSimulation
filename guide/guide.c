@@ -104,16 +104,23 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
         give_semaphore(guide->semaphores, CATWALK_DIRECTION_SEMAPHORE);
     give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
+    VisitorEnterMessage visitor_enter_message = {
+        .entering_cave = false
+    };
     for (size_t i = 0; i < guide->trail_visitors.size; i++) {
         int visitor_pid = ((int *)guide->trail_visitors.ptr)[i];
         Message message = {0};
         message.mtype = visitor_pid;
+        memcpy(message.mtext, &visitor_enter_message, sizeof(VisitorEnterMessage));
         
         if (msgsnd(guide->message_queue, &message, sizeof(message.mtext), 0) == -1)
             perror("guide_run: msgsnd (Visitor)");
     }
 
-    usleep(guide->shared_memory->T[guide->number] * 1000);
+    usleep(10 * 1000);
+
+    if (0)
+        usleep(guide->shared_memory->T[guide->number] * 60 * 1000);
 
     take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
@@ -262,7 +269,7 @@ GuideRes guide_run(Guide *guide) {
             terminate = true;
 
         bool tour_start = false;
-        int timeout = (guide->shared_memory->T[guide->number]);
+        int timeout = (guide->shared_memory->T[guide->number]) * 60;
         if (guide->trail_visitors_count == guide->shared_memory->N[guide->number]
                     || (guide->shared_memory->terminating && timeout_counter >= timeout)) {
             int trail_semaphore = (guide->number == 1) ? TRAIL2_SEMAPHORE : TRAIL1_SEMAPHORE;

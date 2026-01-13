@@ -200,8 +200,8 @@ static void init_parameters(CaveSimulation *cave_simulation) {
     SharedMemory *shared_memory = cave_simulation->shared_memory;
     shared_memory->N[0] = 5;
     shared_memory->N[1] = 5;
-    shared_memory->T[0] = 100;
-    shared_memory->T[1] = 100;
+    shared_memory->T[0] = 1;
+    shared_memory->T[1] = 1;
     shared_memory->K = 3;
 }
 

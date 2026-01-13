@@ -179,8 +179,13 @@ VisitorRes visitor_run(Visitor *visitor) {
         return VISITOR_RUN_FAIL;
     }
 
-    output_log(visitor->semaphores, visitor->shared_memory,
-            "Visitor (PID: %d) is starting the tour", pid);
+    VisitorEnterMessage visitor_enter_message;
+    memcpy(&visitor_enter_message, message.mtext, sizeof(VisitorEnterMessage));
+    
+    if (visitor_enter_message.entering_cave) {
+        output_log(visitor->semaphores, visitor->shared_memory,
+                "Visitor (PID: %d) is starting the tour", pid);
+    }
 
     // Wait for the tour to end
     res = msgrcv(visitor->message_queue, &message, sizeof(message.mtext), pid, 0);
@@ -192,9 +197,14 @@ VisitorRes visitor_run(Visitor *visitor) {
                 "visitor_run: wrong number of bytes received from message queue");
         return VISITOR_RUN_FAIL;
     }
-
-    output_log(visitor->semaphores, visitor->shared_memory,
+    
+    if (visitor_enter_message.entering_cave) {
+        output_log(visitor->semaphores, visitor->shared_memory,
             "Visitor (PID: %d) finished the tour", pid);
+    } else {
+        output_log(visitor->semaphores, visitor->shared_memory,
+                "Visitor (PID: %d) canceling the tour", pid);
+    }
 
     take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
     output_log(visitor->semaphores, visitor->shared_memory,
