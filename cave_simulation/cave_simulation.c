@@ -254,7 +254,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     setpgid(0, 0);
     signal(SIGUSR1, SIG_DFL);
 
-    //take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
+    take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
 
     int res1 = spawn_guide(cave_simulation);
     int res2 = spawn_guide(cave_simulation);
@@ -264,7 +264,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     cave_simulation->shared_memory->guide1_pid = res1;
     cave_simulation->shared_memory->guide2_pid = res2;
 
-    //give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
+    give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
 
     uint64_t time = 0;
 
