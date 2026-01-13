@@ -351,15 +351,15 @@ GuideRes guide_run(Guide *guide) {
             }
         }
 
-        if (tour_start) {
-            timeout_counter = 0;
-            guide_tour(guide, person_space, buffer);
-        }
-
         int res;
         do {
             res = receive_message(guide);
         } while (res == 1);
+
+        if (tour_start) {
+            timeout_counter = 0;
+            guide_tour(guide, person_space, buffer);
+        }
     } while (!terminate);
 
     free(buffer);
