@@ -113,8 +113,12 @@ VisitorRes visitor_run(Visitor *visitor) {
 
     take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
     volatile int *catwalk_visitors = visitor->shared_memory->catwalk_visitors;
+    output_log(visitor->semaphores, visitor->shared_memory,
+            "Catwalks: %d %d", catwalk_visitors[0], catwalk_visitors[1]);
     int catwalk_number = (catwalk_visitors[1] < catwalk_visitors[0]) ? 1 : 0;
     catwalk_visitors[catwalk_number] += 1 + children_count;
+    output_log(visitor->semaphores, visitor->shared_memory,
+            "CatwalksF: %d %d", catwalk_visitors[0], catwalk_visitors[1]);
     give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
 
     int catwalk_pipe = visitor->shared_memory->catwalk_pipe[catwalk_number][1];
@@ -193,8 +197,12 @@ VisitorRes visitor_run(Visitor *visitor) {
             "Visitor (PID: %d) finished the tour", pid);
 
     take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+    output_log(visitor->semaphores, visitor->shared_memory,
+            "RCatwalks: %d %d", catwalk_visitors[0], catwalk_visitors[1]);
     catwalk_number = (catwalk_visitors[1] < catwalk_visitors[0]) ? 1 : 0;
     catwalk_visitors[catwalk_number] += 1 + children_count;
+    output_log(visitor->semaphores, visitor->shared_memory,
+            "RCatwalksF: %d %d", catwalk_visitors[0], catwalk_visitors[1]);
 
     catwalk_pipe = visitor->shared_memory->catwalk_pipe[catwalk_number][1];
     give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);

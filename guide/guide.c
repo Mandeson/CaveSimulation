@@ -139,6 +139,8 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
     guide->shared_memory->catwalk_direction = OUT;
     guide->shared_memory->guides_using_catwalks++;
 
+    give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+
     for (size_t i = 0; i < guide->trail_visitors.size; i++) {
         int visitor_pid = ((int *)guide->trail_visitors.ptr)[i];
         Message message = {0};
@@ -151,10 +153,21 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
     output_log(guide->semaphores, guide->shared_memory,
             "Guide of trail %d started reading from pipe", guide->number + 1);
 
-    give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+    for (int i = 0; i < guide->trail_visitors_count; i++) {
+        bool empty = true;
 
-    for (size_t i = 0; i < guide->trail_visitors.size; i++) {
         take_semaphore(guide->semaphores, PIPE_READ_SEMAPHORE);
+
+        do {
+            take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+            volatile int *catwalk_visitors = guide->shared_memory->catwalk_visitors;
+            empty = (catwalk_visitors[0] == 0) && (catwalk_visitors[1] == 0);
+            give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+
+            if (empty)  // No visitor has yet exited the catwalk yet
+                usleep(1000);
+        } while (empty);
+
         take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
         volatile int *catwalk_visitors = guide->shared_memory->catwalk_visitors;
         int catwalk_number = (catwalk_visitors[1] > catwalk_visitors[0]) ? 1 : 0;
@@ -163,19 +176,19 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
         give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
         output_log(guide->semaphores, guide->shared_memory,
-            "Reading catwalk %d", catwalk_number);
+                "Guide %d reading catwalk %d", guide->number + 1, catwalk_number);
 
         int nbytes = 0;
         if (ioctl(catwalk_pipe, FIONREAD, &nbytes) == -1) {
             perror("ioctl(FIONREAD)");
         } else {
             output_log(guide->semaphores, guide->shared_memory,
-            "Bytes available %d", nbytes);
+                    "Guide %d bytes available %d", guide->number + 1, nbytes);
         }
 
         int res = read(catwalk_pipe, buffer, person_space);
         output_log(guide->semaphores, guide->shared_memory,
-            "Read %d", res);
+                "Guide %d read %d", guide->number + 1, res);
         if (res == -1) {
             perror("guide_tour: read");
             break;
@@ -185,26 +198,9 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
                     "Guide error: pipe read size mismatch");
         } else {
             VisitorOnCatwalk visitor_on_catwalk;
-                memcpy(&visitor_on_catwalk, buffer, sizeof(VisitorOnCatwalk));
-                output_log(guide->semaphores, guide->shared_memory,
-                        "Guide %d has read PID: %d from the pipe", guide->number + 1, visitor_on_catwalk.pid);
-
-                for (int i = 0; i < visitor_on_catwalk.children_count; i++) {
-                    // give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
-                    int res = read(catwalk_pipe, buffer, person_space);
-                    // take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
-                    if (res == -1) {
-                        perror("guide_run: read");
-                        give_semaphore(guide->semaphores, PIPE_READ_SEMAPHORE);
-                        give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
-                        return;
-                    }
-                    catwalk_visitors[catwalk_number] -= 1;
-                    VisitorOnCatwalk tmp;
-                    memcpy(&tmp, buffer, sizeof(VisitorOnCatwalk));
-                    output_log(guide->semaphores, guide->shared_memory,
-                        "Guide %d has read PID: %d (child) from the pipe", guide->number + 1, tmp.pid);
-                }
+            memcpy(&visitor_on_catwalk, buffer, sizeof(VisitorOnCatwalk));
+            output_log(guide->semaphores, guide->shared_memory,
+                    "Guide %d has read PID: %d from the pipe", guide->number + 1, visitor_on_catwalk.pid);
         }
 
         give_semaphore(guide->semaphores, PIPE_READ_SEMAPHORE);
@@ -212,6 +208,8 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
 
     output_log(guide->semaphores, guide->shared_memory,
             "Guide of trail %d finished reading from pipe", guide->number + 1);
+        
+    take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
     guide->shared_memory->guides_using_catwalks--;
     if (guide->shared_memory->guides_using_catwalks == 0)
@@ -290,11 +288,9 @@ GuideRes guide_run(Guide *guide) {
         } else {
             int catwalk_pipe = guide->shared_memory->catwalk_pipe[catwalk_number][0];
             output_log(guide->semaphores, guide->shared_memory,
-                        "R %d %d %d %d", guide->number, catwalk_visitors[0], catwalk_visitors[1], catwalk_number);
+                        "R %d   %d %d", guide->number, catwalk_visitors[0], catwalk_visitors[1]);
             int res = read(catwalk_pipe, buffer, person_space);
             catwalk_visitors[catwalk_number] -= 1;
-            output_log(guide->semaphores, guide->shared_memory,
-                        "RF %d %d %d %d", guide->number, catwalk_visitors[0], catwalk_visitors[1], catwalk_number);
 
             if (res == -1) {
                 perror("guide_run: read");
@@ -329,6 +325,9 @@ GuideRes guide_run(Guide *guide) {
                     output_log(guide->semaphores, guide->shared_memory,
                         "Guide %d has read PID: %d (child) from the pipe", guide->number + 1, tmp.pid);
                 }
+
+                output_log(guide->semaphores, guide->shared_memory,
+                        "RF %d   %d %d", guide->number, catwalk_visitors[0], catwalk_visitors[1]);
 
                 give_semaphore(guide->semaphores, PIPE_READ_SEMAPHORE);
 
