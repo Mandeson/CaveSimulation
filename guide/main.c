@@ -5,9 +5,11 @@
 Guide guide;
 
 void sigusr1_handler(int);
+void sigusr2_handler(int);
 
 int main(void) {
     signal(SIGUSR1, sigusr1_handler);
+    signal(SIGUSR2, sigusr2_handler);
     signal(SIGINT, SIG_IGN);
 
     GuideRes res = guide_init(&guide);
@@ -30,4 +32,10 @@ void sigusr1_handler(int sig) {
 
     GuideRes destroy_res = guide_destroy(&guide);
     exit(destroy_res);
+}
+
+void sigusr2_handler(int sig) {
+    (void)sig;
+
+    guide_signal(&guide);
 }

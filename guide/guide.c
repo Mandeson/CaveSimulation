@@ -104,8 +104,9 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
         give_semaphore(guide->semaphores, CATWALK_DIRECTION_SEMAPHORE);
     give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
+    bool tour_cancelled = true;//guide->tour_cancelled;
     VisitorEnterMessage visitor_enter_message = {
-        .entering_cave = false
+        .entering_cave = !tour_cancelled
     };
     for (size_t i = 0; i < guide->trail_visitors.size; i++) {
         int visitor_pid = ((int *)guide->trail_visitors.ptr)[i];
@@ -117,9 +118,9 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
             perror("guide_run: msgsnd (Visitor)");
     }
 
-    usleep(10 * 1000);
+    usleep(30 * 1000);
 
-    if (0)
+    if (!tour_cancelled) // Go on the tour
         usleep(guide->shared_memory->T[guide->number] * 60 * 1000);
 
     take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
@@ -244,6 +245,8 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
             "Guide of trail %d opening the gate", guide->number + 1);
 
     open_gate(guide);
+
+    guide->tour_cancelled = false;
 }
 
 GuideRes guide_run(Guide *guide) {
@@ -374,4 +377,8 @@ GuideRes guide_run(Guide *guide) {
             "Guide (PID: %d) finished", getpid());
 
     return GUIDE_SUCCESS;
+}
+
+void guide_signal(Guide *guide) {
+    guide->tour_cancelled = true;
 }

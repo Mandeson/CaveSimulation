@@ -8,6 +8,7 @@ typedef struct {
     int number;
     int trail_visitors_count;
     Array trail_visitors;
+    volatile bool tour_cancelled;
 
     SharedMemory *shared_memory;
     int message_queue;
@@ -25,3 +26,4 @@ typedef enum {
 GuideRes guide_init(Guide *guide);
 GuideRes guide_destroy(Guide *guide);
 GuideRes guide_run(Guide *guide);
+void guide_signal(Guide *guide);

@@ -1,6 +1,7 @@
 #include "cave_simulation.h"
 
 #include <linux/limits.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -128,13 +129,10 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     cave_simulation->shared_memory->terminating = true;
     give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
 
-    if (cave_simulation->interrupted) {
-        // Signal remaining visitors to terminate
-        
-    }
-
     output_log(cave_simulation->semaphores, cave_simulation->shared_memory,
             "Destroying cave simulation");
+
+    kill(cave_simulation->guard_pid, SIGUSR1);
 
     bool error = false;
 
@@ -265,6 +263,25 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     cave_simulation->shared_memory->guide2_pid = res2;
 
     give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
+
+    fork_res = fork();
+    if (fork_res == -1) {
+        perror("spawn_guide: fork");
+        return -1;
+    }
+    if (fork_res == 0) {
+        signal(SIGINT, SIG_IGN);
+
+        close_catwalk_pipe_input(cave_simulation->shared_memory);
+        close_catwalk_pipe_output(cave_simulation->shared_memory);
+
+        if (execl("./Guard", "Guard", NULL) == -1) {
+            perror("cave_simulation_run: execl (Guard)");
+            return -1;
+        }
+    }
+    cave_simulation->guard_pid = fork_res;
+    cave_simulation->child_processes++;
 
     uint64_t time = 0;
 

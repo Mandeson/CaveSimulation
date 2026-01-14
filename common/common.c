@@ -152,13 +152,12 @@ void output_log(int semaphores, const SharedMemory *shared_memory, const char *f
     int cnt = vsnprintf(string, 256 - 1, format, arg);
     va_end(arg);
 
-    take_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
-
-    puts(string);
-    fflush(stdout);
-
     string[cnt] = '\n';
+    if (cnt + 1 >= 256) // Prevent buffer overflow
+        cnt = 254;
     string[cnt + 1] = '\0';
+
+    take_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
 
     int fd = open(shared_memory->output_file_name, O_WRONLY | O_APPEND, 0600);
     if (fd == -1) {

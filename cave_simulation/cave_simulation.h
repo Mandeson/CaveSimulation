@@ -12,6 +12,7 @@ typedef struct {
     int message_queue;
     int semaphores;
     int child_processes;
+    int guard_pid;
 
     SharedMemory *shared_memory;
 } CaveSimulation;
