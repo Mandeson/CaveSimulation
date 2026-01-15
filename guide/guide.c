@@ -105,11 +105,14 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
     bool let_another_guide_in = false;
     if (guide->shared_memory->guides_using_catwalks == 0
             && guide->shared_memory->guide_direction_wait) {
+        guide->shared_memory->guide_direction_wait = false;
         give_semaphore(guide->semaphores, CATWALK_DIRECTION_SEMAPHORE);
         logger_log(&guide->logger,
-                "Guide of trail %d direction semaphore given", guide->number + 1);
+                "Guide of trail %d gives direction semaphore", guide->number + 1);
         let_another_guide_in = true;
     }
+    logger_log(&guide->logger,
+        "Guide of trail %d: p1 direction %s, guides using catwalks %d", guide->number + 1, guide->shared_memory->catwalk_direction == IN ? "IN" : "OUT", guide->shared_memory->guides_using_catwalks);
     give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
     bool tour_cancelled = guide->tour_cancelled;
@@ -125,8 +128,6 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
         if (msgsnd(guide->message_queue, &message, sizeof(message.mtext), 0) == -1)
             perror("guide_run: msgsnd (Visitor)");
     }
-
-    usleep(30 * 1000);
 
     if (!tour_cancelled) // Go on the tour
         usleep(guide->shared_memory->T[guide->number] * 60 * 1000);
@@ -149,13 +150,14 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
         give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
         take_semaphore(guide->semaphores, CATWALK_DIRECTION_SEMAPHORE);
         take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
-        guide->shared_memory->guide_direction_wait = false;
         logger_log(&guide->logger,
             "Guide of trail %d end wait1", guide->number + 1);
         has_been_let_in = true;
     }
     guide->shared_memory->catwalk_direction = OUT;
     guide->shared_memory->guides_using_catwalks++;
+    logger_log(&guide->logger,
+        "Guide of trail %d: p2 direction %s, guides using catwalks %d", guide->number + 1, guide->shared_memory->catwalk_direction == IN ? "IN" : "OUT", guide->shared_memory->guides_using_catwalks);
 
     give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
@@ -182,8 +184,8 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
             empty = (catwalk_visitors[0] == 0) && (catwalk_visitors[1] == 0);
             give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
-            if (empty)  // No visitor has yet exited the catwalk yet
-                usleep(1000);
+            /*if (empty)  // No visitor has yet exited the catwalk yet
+                usleep(1000);*/
         } while (empty);
 
         take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
@@ -236,8 +238,12 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
 
     guide->shared_memory->guides_using_catwalks--;
     if (guide->shared_memory->guides_using_catwalks == 0) {
-        if (guide->shared_memory->guide_in_wait)
+        if (guide->shared_memory->guide_in_wait) {
+            guide->shared_memory->guide_in_wait = false;
+            logger_log(&guide->logger,
+                "Guide of trail %d gives in semaphore", guide->number + 1);
             give_semaphore(guide->semaphores, CATWALK_IN_SEMAPHORE);
+        }
     } else {
         logger_log(&guide->logger,
             "Guide of trail %d wait2, sem: %d", guide->number + 1, 
@@ -246,12 +252,13 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
         give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
         take_semaphore(guide->semaphores, CATWALK_IN_SEMAPHORE);
         take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
-        guide->shared_memory->guide_in_wait = false;
         logger_log(&guide->logger,
             "Guide of trail %d end wait2", guide->number + 1);
     }
     guide->shared_memory->catwalk_direction = IN;
     guide->shared_memory->guides_using_catwalks++;
+    logger_log(&guide->logger,
+        "Guide of trail %d: p3 direction %s, guides using catwalks %d", guide->number + 1, guide->shared_memory->catwalk_direction == IN ? "IN" : "OUT", guide->shared_memory->guides_using_catwalks);
     give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
     array_clear(&guide->trail_visitors);
