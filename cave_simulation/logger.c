@@ -12,10 +12,12 @@
 #include "common.h"
 #include "operations.h"
 
-void logger_init(Logger *logger, bool log_to_stdout) {
+int logger_init(Logger *logger, bool log_to_stdout) {
     logger->log_to_stdout = log_to_stdout;
 
     logger->message_queue = create_message_queue(LOGGER_MESSAGE_QUEUE_ID);
+    if (logger->message_queue == -1)
+        return -1;
 
     // Get time to set the output directory name
     time_t t = time(NULL);
@@ -28,9 +30,15 @@ void logger_init(Logger *logger, bool log_to_stdout) {
     const char *log_directory = "./log";
     char tmp[256];
 
+    if (mkdir(log_directory, 0700) == -1 && errno != EEXIST) {
+        perror("logger_init: mkdir 1");
+        return -1;
+    }
+
     snprintf(tmp, 256, "%s/%s", log_directory, time_date);
     if (mkdir(tmp, 0700) == -1 && errno != EEXIST) {
-        perror("logger_init: mkdir");
+        perror("logger_init: mkdir 2");
+        return -1;
     }
 
     snprintf(tmp, 256, "%s/%s/main.txt", log_directory, time_date);
@@ -39,11 +47,13 @@ void logger_init(Logger *logger, bool log_to_stdout) {
     int fd = open(tmp, O_CREAT | O_WRONLY, 0600);
     if (fd == -1) {
         perror("logger_init: open");
-        return;
+        return -1;
     }
     logger->file = fd;
 
     pthread_create(&logger->logger_thread, NULL, logger_thread_function, logger);
+
+    return 0;
 }
 
 void logger_destroy(Logger *logger) {

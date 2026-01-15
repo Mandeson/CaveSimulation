@@ -51,7 +51,9 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log
     gettimeofday(&time, NULL);
     srand(time.tv_usec);
 
-    logger_init(&cave_simulation->logger, log_to_stdout);
+    if (logger_init(&cave_simulation->logger, log_to_stdout) == -1)
+        return CAVE_SIMULATION_INIT_FAIL;
+
     logger_interface_new(&cave_simulation->logger_interface, "CaveSimulation");
 
     if (!skip_start_confirmation) {
