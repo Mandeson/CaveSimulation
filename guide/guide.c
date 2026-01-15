@@ -102,11 +102,17 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
 
     take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
     guide->shared_memory->guides_using_catwalks--;
-    if (guide->shared_memory->guides_using_catwalks == 0)
+    bool let_another_guide_in = false;
+    if (guide->shared_memory->guides_using_catwalks == 0
+            && guide->shared_memory->guide_direction_wait) {
         give_semaphore(guide->semaphores, CATWALK_DIRECTION_SEMAPHORE);
+        logger_log(&guide->logger,
+                "Guide of trail %d direction semaphore given", guide->number + 1);
+        let_another_guide_in = true;
+    }
     give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
-    bool tour_cancelled = true;//guide->tour_cancelled;
+    bool tour_cancelled = guide->tour_cancelled;
     VisitorEnterMessage visitor_enter_message = {
         .entering_cave = !tour_cancelled
     };
@@ -133,18 +139,20 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
         return;
     }
 
+    bool has_been_let_in = false;
     if (guide->shared_memory->guides_using_catwalks != 0
             && guide->shared_memory->catwalk_direction == IN) {
-        while (semctl(guide->semaphores, CATWALK_DIRECTION_SEMAPHORE, GETVAL) > 0)
-            take_semaphore(guide->semaphores, CATWALK_DIRECTION_SEMAPHORE);
         logger_log(&guide->logger,
             "Guide of trail %d wait1, sem: %d", guide->number + 1, 
         semctl(guide->semaphores, CATWALK_DIRECTION_SEMAPHORE, GETVAL));
+        guide->shared_memory->guide_direction_wait = true;
         give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
         take_semaphore(guide->semaphores, CATWALK_DIRECTION_SEMAPHORE);
         take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+        guide->shared_memory->guide_direction_wait = false;
         logger_log(&guide->logger,
             "Guide of trail %d end wait1", guide->number + 1);
+        has_been_let_in = true;
     }
     guide->shared_memory->catwalk_direction = OUT;
     guide->shared_memory->guides_using_catwalks++;
@@ -219,20 +227,26 @@ void guide_tour(Guide *guide, size_t person_space, void *buffer) {
     logger_log(&guide->logger,
             "Guide of trail %d finished reading from pipe", guide->number + 1);
         
+    if (let_another_guide_in)
+        take_semaphore(guide->semaphores, CATWALK_SEMAPHORE);
+    else if (has_been_let_in)
+        give_semaphore(guide->semaphores, CATWALK_SEMAPHORE);
+
     take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
     guide->shared_memory->guides_using_catwalks--;
-    if (guide->shared_memory->guides_using_catwalks == 0)
-        give_semaphore(guide->semaphores, CATWALK_IN_SEMAPHORE);
-    else {
-        while (semctl(guide->semaphores, CATWALK_IN_SEMAPHORE, GETVAL) > 0)
-            take_semaphore(guide->semaphores, CATWALK_IN_SEMAPHORE);
+    if (guide->shared_memory->guides_using_catwalks == 0) {
+        if (guide->shared_memory->guide_in_wait)
+            give_semaphore(guide->semaphores, CATWALK_IN_SEMAPHORE);
+    } else {
         logger_log(&guide->logger,
             "Guide of trail %d wait2, sem: %d", guide->number + 1, 
         semctl(guide->semaphores, CATWALK_IN_SEMAPHORE, GETVAL));
+        guide->shared_memory->guide_in_wait = true;
         give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
         take_semaphore(guide->semaphores, CATWALK_IN_SEMAPHORE);
         take_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
+        guide->shared_memory->guide_in_wait = false;
         logger_log(&guide->logger,
             "Guide of trail %d end wait2", guide->number + 1);
     }

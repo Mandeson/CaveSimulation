@@ -9,16 +9,17 @@
 #define LOGGER_MESSAGE_QUEUE_ID 61
 
 #define SEMAPHORES_ID 62
-#define NSEMAPHORES 9
+#define NSEMAPHORES 10
 #define SHARED_MEMORY_SEMAPHORE 0
 #define TICKET_REGULAR_SEMAPHORE 1
 #define TICKET_PRIORITY_SEMAPHORE 2
 #define TRAIL1_SEMAPHORE 3
 #define TRAIL2_SEMAPHORE 4
 #define CATWALK_DIRECTION_SEMAPHORE 5
-#define CATWALK_IN_SEMAPHORE 6
-#define PIPE_WRITE_SEMAPHORE 7
-#define PIPE_READ_SEMAPHORE 8
+#define CATWALK_SEMAPHORE 6
+#define CATWALK_IN_SEMAPHORE 7
+#define PIPE_WRITE_SEMAPHORE 8
+#define PIPE_READ_SEMAPHORE 9
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
@@ -49,6 +50,8 @@ typedef struct {
     volatile int priority_ticket_line_size;
     volatile int regular_ticket_line_size;
     volatile int guides_finished;
+    volatile bool guide_direction_wait;
+    volatile bool guide_in_wait;
 } SharedMemory;
 
 typedef struct {
