@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "logger.h"
 #include <sys/ipc.h>
 
 // Maximum delay between new visitors coming to the ticket office
@@ -14,6 +15,9 @@ typedef struct {
     int child_processes;
     int guard_pid;
 
+    Logger logger;
+    LoggerInterface logger_interface;
+
     SharedMemory *shared_memory;
 } CaveSimulation;
 
@@ -25,7 +29,8 @@ typedef enum {
     CAVE_SIMULATION_RUN_FAIL
 } CaveSimulationRes;
 
-CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation);
+CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log_to_stdout,
+        bool skip_start_confirmation);
 CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation);
 CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation);
 void cave_simulation_terminate(CaveSimulation *cave_simulation);

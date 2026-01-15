@@ -1,4 +1,5 @@
 .cache/
+.vscode/
 build/
 CaveSimulation
 TicketClerk
@@ -6,3 +7,4 @@ Visitor
 Guide
 Guard
 CaveSimulation_log_*
+log/

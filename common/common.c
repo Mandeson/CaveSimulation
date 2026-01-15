@@ -1,6 +1,8 @@
 #include "common.h"
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/sem.h>
@@ -15,7 +17,7 @@ SharedMemory *attach_shared_memory() {
         return NULL;
     }
 
-    int shared_memory = shmget(shared_memory_key, sizeof(SharedMemory), IPC_CREAT | 0666);
+    int shared_memory = shmget(shared_memory_key, sizeof(SharedMemory), IPC_CREAT | 0600);
     if (shared_memory == -1) {
         perror("attach_shared_memory: shmget");
         return NULL;
@@ -37,14 +39,14 @@ int detach_shared_memory(SharedMemory *shared_memory) {
     return res;
 }
 
-int get_message_queue() {
-    key_t message_queue_key = ftok(".",MESSAGE_QUEUE_ID);
+int get_message_queue(int id) {
+    key_t message_queue_key = ftok(".", id);
     if (message_queue_key == -1) {
         perror("get_message_queue: ftok");
         return -1;
     }
 
-    int message_queue = msgget(message_queue_key, IPC_CREAT | 0666);
+    int message_queue = msgget(message_queue_key, IPC_CREAT | 0600);
     if (message_queue == -1)
         perror("get_message_queue: msgget");
 
@@ -58,7 +60,7 @@ int get_semaphores() {
         return -1;
     }
 
-    int semaphores = semget(semaphore_key, NSEMAPHORES, IPC_CREAT | 0666);
+    int semaphores = semget(semaphore_key, NSEMAPHORES, IPC_CREAT | 0600);
     if (semaphores == -1)
         perror("get_semaphores: semget");
 
@@ -144,31 +146,35 @@ int set_semaphore(int semaphores, int number, int n) {
     return 0;
 }
 
-void output_log(int semaphores, const SharedMemory *shared_memory, const char *format, ...) {
+void logger_interface_new(LoggerInterface *logger, const char *tag) {
+    strncpy(logger->tag, tag, sizeof(logger->tag) - 1);
+
+    logger->logger_message_queue = get_message_queue(LOGGER_MESSAGE_QUEUE_ID);
+}
+
+void logger_log(const LoggerInterface *logger, const char *format, ...) {
     va_list arg;
-    char string[256];
-
-    va_start(arg, format);
-    int cnt = vsnprintf(string, 256 - 1, format, arg);
-    va_end(arg);
-
-    string[cnt] = '\n';
-    if (cnt + 1 >= 256) // Prevent buffer overflow
-        cnt = 254;
-    string[cnt + 1] = '\0';
-
-    take_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
-
-    int fd = open(shared_memory->output_file_name, O_WRONLY | O_APPEND, 0600);
-    if (fd == -1) {
-        perror("output_log: open");
-        give_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
+    LogMessage message;
+    size_t size = sizeof(message.mtext) - 1 - strlen(logger->tag) - 2;
+    char *string = malloc(size);
+    if (string == NULL) {
+        perror("logger_log: malloc");
         return;
     }
-    if (write(fd, string, cnt + 1) == -1)
-        perror("output_log: write");
-    if (close(fd) == -1)
-        perror("output_log: close");
 
-    give_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
+    va_start(arg, format);
+    vsnprintf(string, size - 1, format, arg);
+    va_end(arg);
+
+    message.mtype = 1;
+    message.mtext[0] = '\0';
+    strcat(message.mtext, logger->tag);
+    strcat(message.mtext, ": ");
+    strcat(message.mtext, string);
+
+    if (msgsnd(logger->logger_message_queue, &message, sizeof(message.mtext), 0) == -1) {
+        perror("logger_log: msgsnd");
+    }
+
+    free(string);
 }

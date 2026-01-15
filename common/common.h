@@ -2,28 +2,27 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
 #define SHARED_MEMORY_ID 59
 
 #define MESSAGE_QUEUE_ID 60
+#define LOGGER_MESSAGE_QUEUE_ID 61
 
-#define SEMAPHORES_ID 61
-#define NSEMAPHORES 10
-#define OUTPUT_LOG_SEMAPHORE 0
-#define SHARED_MEMORY_SEMAPHORE 1
-#define TICKET_REGULAR_SEMAPHORE 2
-#define TICKET_PRIORITY_SEMAPHORE 3
-#define TRAIL1_SEMAPHORE 4
-#define TRAIL2_SEMAPHORE 5
-#define CATWALK_DIRECTION_SEMAPHORE 6
-#define CATWALK_IN_SEMAPHORE 7
-#define PIPE_WRITE_SEMAPHORE 8
-#define PIPE_READ_SEMAPHORE 9
+#define SEMAPHORES_ID 62
+#define NSEMAPHORES 9
+#define SHARED_MEMORY_SEMAPHORE 0
+#define TICKET_REGULAR_SEMAPHORE 1
+#define TICKET_PRIORITY_SEMAPHORE 2
+#define TRAIL1_SEMAPHORE 3
+#define TRAIL2_SEMAPHORE 4
+#define CATWALK_DIRECTION_SEMAPHORE 5
+#define CATWALK_IN_SEMAPHORE 6
+#define PIPE_WRITE_SEMAPHORE 7
+#define PIPE_READ_SEMAPHORE 8
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
 typedef struct {
-    char output_file_name[256];
-
     int N[2];
     int T[2];
     int K; // capacity of the catwalks
@@ -53,9 +52,19 @@ typedef struct {
 } SharedMemory;
 
 typedef struct {
+    int logger_message_queue;
+    char tag[16];
+} LoggerInterface;
+
+typedef struct {
     long mtype;
     char mtext[16];
 } Message;
+
+typedef struct {
+    long mtype;
+    char mtext[248];
+} LogMessage;
 
 typedef struct {
     int age;
@@ -91,7 +100,7 @@ typedef struct {
 
 SharedMemory *attach_shared_memory();
 int detach_shared_memory(SharedMemory *shared_memory);
-int get_message_queue();
+int get_message_queue(int id);
 int get_semaphores();
 int take_semaphore(int semaphores, int number);
 int take_semaphore_n(int semaphores, int number, int n);
@@ -99,3 +108,5 @@ int give_semaphore(int semaphores, int number);
 int give_semaphore_n(int semaphores, int number, int n);
 int set_semaphore(int semaphores, int number, int n);
 void output_log(int semaphores, const SharedMemory *shared_memory, const char *format, ...);
+void logger_interface_new(LoggerInterface *logger, const char *tag);
+void logger_log(const LoggerInterface *logger, const char *format, ...);

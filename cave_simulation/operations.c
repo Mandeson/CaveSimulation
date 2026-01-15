@@ -15,7 +15,7 @@ int create_shared_memory(SharedMemory **shared_memory_ptr) {
         return -1;
     }
 
-    int shared_memory_id = shmget(shared_memory_key, sizeof(SharedMemory), IPC_CREAT | IPC_EXCL | 0666);
+    int shared_memory_id = shmget(shared_memory_key, sizeof(SharedMemory), IPC_CREAT | IPC_EXCL | 0600);
     if (shared_memory_id == -1) {
         perror("create_shared_memory: shmget");
         return -1;
@@ -49,14 +49,14 @@ int destroy_shared_memory(SharedMemory **shared_memory_ptr, int shared_memory_id
     return 0;
 }
 
-int create_message_queue() {
-    key_t message_queue_key = ftok(".",MESSAGE_QUEUE_ID);
+int create_message_queue(int id) {
+    key_t message_queue_key = ftok(".", id);
     if (message_queue_key == -1) {
         perror("create_message_queue: ftok");
         return -1;
     }
 
-    int message_queue = msgget(message_queue_key, IPC_CREAT | IPC_EXCL | 0666);
+    int message_queue = msgget(message_queue_key, IPC_CREAT | IPC_EXCL | 0600);
     if (message_queue == -1)
         perror("create_message_queue: msgget");
 
@@ -78,7 +78,7 @@ int create_semaphores() {
         return -1;
     }
 
-    int semaphores = semget(semaphore_key, NSEMAPHORES, IPC_CREAT | IPC_EXCL | 0666);
+    int semaphores = semget(semaphore_key, NSEMAPHORES, IPC_CREAT | IPC_EXCL | 0600);
     if (semaphores == -1)
         perror("create_semaphores: semget");
 
@@ -91,18 +91,4 @@ int destroy_semaphores(int semaphores) {
         perror("destroy_message_queue: semctl");
 
     return res;
-}
-
-int create_output_file(SharedMemory *shared_memory) {
-    int fd = open(shared_memory->output_file_name, O_CREAT, 0600);
-    if (fd == -1) {
-        perror("create_output_file: open");
-        return -1;
-    }
-    if (close(fd) == -1) {
-        perror("create_output_file: close");
-        return -1;
-    }
-
-    return 0;
 }

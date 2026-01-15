@@ -23,7 +23,7 @@ TicketClerkRes ticket_clerk_init(TicketClerk *ticket_clerk) {
         return TICKET_CLERK_INIT_FAIL;
     ticket_clerk->shared_memory = shared_memory;
 
-    int message_queue = get_message_queue();
+    int message_queue = get_message_queue(MESSAGE_QUEUE_ID);
     if (message_queue == -1) {
         detach_shared_memory(shared_memory);
         return TICKET_CLERK_INIT_FAIL;
@@ -37,11 +37,13 @@ TicketClerkRes ticket_clerk_init(TicketClerk *ticket_clerk) {
     }
     ticket_clerk->semaphores = semaphores;
 
+    logger_interface_new(&ticket_clerk->logger, "TicketClerk");
+
     return TICKET_CLERK_SUCCESS;
 }
 
 TicketClerkRes ticket_clerk_destroy(TicketClerk *ticket_clerk) {
-    output_log(ticket_clerk->semaphores, ticket_clerk->shared_memory,
+    logger_log(&ticket_clerk->logger,
             "Destroying ticket clerk (PID: %d)", getpid());
 
     if (detach_shared_memory(ticket_clerk->shared_memory) == -1)
@@ -79,7 +81,7 @@ static void ticket_clerk_sell_tickets(TicketClerk *ticket_clerk, const VisitorMe
 TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
     pid_t pid = getpid();
     
-    output_log(ticket_clerk->semaphores, ticket_clerk->shared_memory,
+    logger_log(&ticket_clerk->logger,
             "Running ticket clerk (PID: %d)", pid);
 
     bool terminate = false;
@@ -97,7 +99,7 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
                     return TICKET_CLERK_RUN_FAIL;
                 }
             } else if (res != sizeof(message.mtext)) {
-                output_log(ticket_clerk->semaphores, ticket_clerk->shared_memory,
+                logger_log(&ticket_clerk->logger,
                         "ticket_clerk_run: wrong number of bytes received from message queue");
                 return TICKET_CLERK_RUN_FAIL;
             } else {
@@ -106,7 +108,7 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
                 } else {
                     VisitorMessage visitor_message;
                     memcpy(&visitor_message, message.mtext, sizeof(visitor_message));
-                    output_log(ticket_clerk->semaphores, ticket_clerk->shared_memory,
+                    logger_log(&ticket_clerk->logger,
                             "TicketClerk received ticket request from PID: %d, age: %d, "
                             "children: %d and sends the ticket",
                             visitor_message.pid, visitor_message.visitor_info.age,

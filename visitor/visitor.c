@@ -37,7 +37,7 @@ VisitorRes visitor_init(Visitor *visitor) {
         return VISITOR_INIT_FAIL;
     visitor->shared_memory = shared_memory;
     
-    int message_queue = get_message_queue();
+    int message_queue = get_message_queue(MESSAGE_QUEUE_ID);
     if (message_queue == -1) {
         detach_shared_memory(shared_memory);
         return VISITOR_INIT_FAIL;
@@ -51,6 +51,8 @@ VisitorRes visitor_init(Visitor *visitor) {
     }
     visitor->semaphores = semaphores;
 
+    logger_interface_new(&visitor->logger, "Visitor");
+
     return VISITOR_SUCCESS;
 }
 
@@ -63,7 +65,7 @@ VisitorRes visitor_destroy(Visitor *visitor) {
 
 VisitorRes visitor_run(Visitor *visitor) {
     pid_t pid = getpid();
-    output_log(visitor->semaphores, visitor->shared_memory,
+    logger_log(&visitor->logger,
             "Running visitor (PID: %d)", pid);
 
     take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
@@ -72,7 +74,7 @@ VisitorRes visitor_run(Visitor *visitor) {
 
     take_semaphore(visitor->semaphores, TICKET_REGULAR_SEMAPHORE);
 
-    output_log(visitor->semaphores, visitor->shared_memory,
+    logger_log(&visitor->logger,
             "Visitor %d enters the ticket office and requests ticket", pid);
 
     // Request ticket from TicketClerk
@@ -94,7 +96,7 @@ VisitorRes visitor_run(Visitor *visitor) {
         perror("visitor_run: msgrcv");
         return VISITOR_RUN_FAIL;
     } else if (res != sizeof(message.mtext)) {
-        output_log(visitor->semaphores, visitor->shared_memory,
+        logger_log(&visitor->logger,
                 "visitor_run: wrong number of bytes received from message queue");
         return VISITOR_RUN_FAIL;
     }
@@ -102,7 +104,7 @@ VisitorRes visitor_run(Visitor *visitor) {
     TicketMessage ticket_message;
     memcpy(&ticket_message, message.mtext, sizeof(TicketMessage));
 
-    output_log(visitor->semaphores, visitor->shared_memory,
+    logger_log(&visitor->logger,
             "Visitor (PID: %d) has received the ticket for trail %d and pays %d golden coins",
             pid, ticket_message.trail_nr, ticket_message.cost);
 
@@ -113,24 +115,24 @@ VisitorRes visitor_run(Visitor *visitor) {
 
     take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
     volatile int *catwalk_visitors = visitor->shared_memory->catwalk_visitors;
-    output_log(visitor->semaphores, visitor->shared_memory,
+    logger_log(&visitor->logger,
             "Catwalks: %d %d", catwalk_visitors[0], catwalk_visitors[1]);
     int catwalk_number = (catwalk_visitors[1] < catwalk_visitors[0]) ? 1 : 0;
     catwalk_visitors[catwalk_number] += 1 + children_count;
-    output_log(visitor->semaphores, visitor->shared_memory,
+    logger_log(&visitor->logger,
             "CatwalksF: %d %d", catwalk_visitors[0], catwalk_visitors[1]);
     give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
 
     int catwalk_pipe = visitor->shared_memory->catwalk_pipe[catwalk_number][1];
 
-    output_log(visitor->semaphores, visitor->shared_memory,
+    logger_log(&visitor->logger,
             "Visitor (PID: %d) trying to enter catwalk %d", pid, catwalk_number);
 
     size_t space = PIPE_BUF / visitor->shared_memory->K;
     void *buffer = malloc(space);
     memset(buffer, 0, space);
     void *buffer_empty = malloc(space);
-    memset(buffer, 0, space);
+    memset(buffer_empty, 0, space);
     
     VisitorOnCatwalk on_catwalk;
     on_catwalk.pid = pid;
@@ -143,7 +145,7 @@ VisitorRes visitor_run(Visitor *visitor) {
 
     take_semaphore(visitor->semaphores, PIPE_WRITE_SEMAPHORE);
 
-    output_log(visitor->semaphores, visitor->shared_memory,
+    logger_log(&visitor->logger,
             "W %d %d %d", catwalk_visitors[0], catwalk_visitors[1], catwalk_number);
     res = write(catwalk_pipe, buffer, space);
     if (res == -1) {
@@ -163,7 +165,7 @@ VisitorRes visitor_run(Visitor *visitor) {
             return VISITOR_RUN_FAIL;
         }
     }
-    output_log(visitor->semaphores, visitor->shared_memory,
+    logger_log(&visitor->logger,
             "WF %d %d %d", catwalk_visitors[0], catwalk_visitors[1], catwalk_number);
 
     give_semaphore(visitor->semaphores, PIPE_WRITE_SEMAPHORE);
@@ -174,7 +176,7 @@ VisitorRes visitor_run(Visitor *visitor) {
         perror("visitor_run: msgrcv");
         return VISITOR_RUN_FAIL;
     } else if (res != sizeof(message.mtext)) {
-        output_log(visitor->semaphores, visitor->shared_memory,
+        logger_log(&visitor->logger,
                 "visitor_run: wrong number of bytes received from message queue");
         return VISITOR_RUN_FAIL;
     }
@@ -183,7 +185,7 @@ VisitorRes visitor_run(Visitor *visitor) {
     memcpy(&visitor_enter_message, message.mtext, sizeof(VisitorEnterMessage));
     
     if (visitor_enter_message.entering_cave) {
-        output_log(visitor->semaphores, visitor->shared_memory,
+        logger_log(&visitor->logger,
                 "Visitor (PID: %d) is starting the tour", pid);
     }
 
@@ -193,31 +195,31 @@ VisitorRes visitor_run(Visitor *visitor) {
         perror("visitor_run: msgrcv");
         return VISITOR_RUN_FAIL;
     } else if (res != sizeof(message.mtext)) {
-        output_log(visitor->semaphores, visitor->shared_memory,
+        logger_log(&visitor->logger,
                 "visitor_run: wrong number of bytes received from message queue");
         return VISITOR_RUN_FAIL;
     }
     
     if (visitor_enter_message.entering_cave) {
-        output_log(visitor->semaphores, visitor->shared_memory,
+        logger_log(&visitor->logger,
             "Visitor (PID: %d) finished the tour", pid);
     } else {
-        output_log(visitor->semaphores, visitor->shared_memory,
+        logger_log(&visitor->logger,
                 "Visitor (PID: %d) canceling the tour", pid);
     }
 
     take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
-    output_log(visitor->semaphores, visitor->shared_memory,
+    logger_log(&visitor->logger,
             "RCatwalks: %d %d", catwalk_visitors[0], catwalk_visitors[1]);
     catwalk_number = (catwalk_visitors[1] < catwalk_visitors[0]) ? 1 : 0;
     catwalk_visitors[catwalk_number] += 1 + children_count;
-    output_log(visitor->semaphores, visitor->shared_memory,
+    logger_log(&visitor->logger,
             "RCatwalksF: %d %d", catwalk_visitors[0], catwalk_visitors[1]);
 
     catwalk_pipe = visitor->shared_memory->catwalk_pipe[catwalk_number][1];
     give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
 
-    output_log(visitor->semaphores, visitor->shared_memory,
+    logger_log(&visitor->logger,
             "Visitor (PID: %d) trying to exit the cave using the catwalk %d", pid, catwalk_number);
     
     take_semaphore(visitor->semaphores, PIPE_WRITE_SEMAPHORE);
@@ -231,7 +233,7 @@ VisitorRes visitor_run(Visitor *visitor) {
         return VISITOR_RUN_FAIL;
     }
 
-    output_log(visitor->semaphores, visitor->shared_memory,
+    logger_log(&visitor->logger,
             "Visitor (PID: %d) written %d", pid, res);
 
     for (int i = 0; i < children_count; i++) {
@@ -244,8 +246,8 @@ VisitorRes visitor_run(Visitor *visitor) {
             return VISITOR_RUN_FAIL;
         }
 
-        output_log(visitor->semaphores, visitor->shared_memory,
-            "Visitor (PID: %d) written %d", res);
+        logger_log(&visitor->logger,
+            "Visitor (PID: %d) written %d", pid, res);
     }
     
     give_semaphore(visitor->semaphores, PIPE_WRITE_SEMAPHORE);
