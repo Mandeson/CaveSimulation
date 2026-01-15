@@ -1,5 +1,6 @@
 #include "cave_simulation.h"
 #include <signal.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -12,16 +13,25 @@ int main(int argsc, char *argv[]) {
 
     bool log_to_stdout = false;
     bool skip_start_confirmation = false;
+    bool disable_guard = false;
     for (int i = 1; i < argsc; i++) {
         if (strcmp(argv[i], "--log-to-stdout") == 0) {
             log_to_stdout = true;
         } else if (strcmp(argv[i], "--skip-start-confirmation") == 0) {
             skip_start_confirmation = true;
+        } else if (strcmp(argv[i], "--disable-guard") == 0) {
+            disable_guard = true;
+        } else if (strcmp(argv[i], "--help") == 0) {
+            printf("Usage: %s [--log-to-stdout] [--skip-start-confirmation] [--disable-guard]\n", argv[0]);
+            return 0;
+        } else {
+            printf("Unknown command line option: %s\n", argv[i]);
+            return -1;
         }
     }
 
     CaveSimulationRes res = cave_simulation_init(&cave_simulation, log_to_stdout,
-            skip_start_confirmation);
+            skip_start_confirmation, disable_guard);
     if (res != CAVE_SIMULATION_SUCCESS)
         return res;
 

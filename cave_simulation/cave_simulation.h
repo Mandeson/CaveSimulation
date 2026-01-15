@@ -8,6 +8,7 @@
 #define CAVE_SIMULATION_MAX_VISITORS_DELAY 20
 
 typedef struct {
+    bool disable_guard;
     volatile bool interrupted;
     int shared_memory_id;
     int message_queue;
@@ -30,7 +31,7 @@ typedef enum {
 } CaveSimulationRes;
 
 CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log_to_stdout,
-        bool skip_start_confirmation);
+        bool skip_start_confirmation, bool disable_guard);
 CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation);
 CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation);
 void cave_simulation_terminate(CaveSimulation *cave_simulation);

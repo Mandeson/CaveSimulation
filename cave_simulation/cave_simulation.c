@@ -43,8 +43,10 @@ static int init_semaphores(int semaphores) {
 }
 
 CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log_to_stdout,
-        bool skip_start_confirmation) {
+        bool skip_start_confirmation, bool disable_guard) {
     signal(SIGUSR1, SIG_IGN);
+
+    cave_simulation->disable_guard = disable_guard;
 
     // Get time for random seed (microseconds)
     struct timeval time;
@@ -128,7 +130,8 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
 
     logger_log(&cave_simulation->logger_interface, "Destroying cave simulation");
 
-    kill(cave_simulation->guard_pid, SIGUSR1);
+    if (!cave_simulation->disable_guard)
+        kill(cave_simulation->guard_pid, SIGUSR1);
 
     bool error = false;
 
@@ -261,24 +264,26 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
 
     give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
 
-    fork_res = fork();
-    if (fork_res == -1) {
-        perror("spawn_guide: fork");
-        return -1;
-    }
-    if (fork_res == 0) {
-        signal(SIGINT, SIG_IGN);
-
-        close_catwalk_pipe_input(cave_simulation->shared_memory);
-        close_catwalk_pipe_output(cave_simulation->shared_memory);
-
-        if (execl("./Guard", "Guard", NULL) == -1) {
-            perror("cave_simulation_run: execl (Guard)");
+    if (!cave_simulation->disable_guard) {
+        fork_res = fork();
+        if (fork_res == -1) {
+            perror("spawn_guide: fork");
             return -1;
         }
+        if (fork_res == 0) {
+            signal(SIGINT, SIG_IGN);
+
+            close_catwalk_pipe_input(cave_simulation->shared_memory);
+            close_catwalk_pipe_output(cave_simulation->shared_memory);
+
+            if (execl("./Guard", "Guard", NULL) == -1) {
+                perror("cave_simulation_run: execl (Guard)");
+                return -1;
+            }
+        }
+        cave_simulation->guard_pid = fork_res;
+        cave_simulation->child_processes++;
     }
-    cave_simulation->guard_pid = fork_res;
-    cave_simulation->child_processes++;
 
     uint64_t time = 0;
 
