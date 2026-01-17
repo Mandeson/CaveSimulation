@@ -1,4 +1,5 @@
 #include "common.h"
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,7 +74,7 @@ int take_semaphore(int semaphores, int number) {
     op.sem_op = -1;
     op.sem_flg = SEM_UNDO;
 
-    if (semop(semaphores, &op, 1) == -1) {
+    if (semop(semaphores, &op, 1) == -1 && errno != EINTR) {
         perror("take_semaphore: semop");
         return -1;
     }
@@ -115,7 +116,7 @@ int give_semaphore(int semaphores, int number) {
     //     give_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
     // }
 
-    if (semop(semaphores, &op, 1) == -1) {
+    if (semop(semaphores, &op, 1) == -1 && errno != EINTR) {
         perror("give_semaphore: semop");
         return -1;
     }
