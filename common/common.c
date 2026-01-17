@@ -71,7 +71,7 @@ int take_semaphore(int semaphores, int number) {
     struct sembuf op;
     op.sem_num = number;
     op.sem_op = -1;
-    op.sem_flg = 0;//SEM_UNDO;
+    op.sem_flg = SEM_UNDO;
 
     if (semop(semaphores, &op, 1) == -1) {
         perror("take_semaphore: semop");
@@ -106,7 +106,7 @@ int give_semaphore(int semaphores, int number) {
     struct sembuf op;
     op.sem_num = number;
     op.sem_op = 1;
-    op.sem_flg = 0;//SEM_UNDO;
+    op.sem_flg = SEM_UNDO;
 
     // if (number == SHARED_MEMORY_SEMAPHORE) {
     //     take_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);

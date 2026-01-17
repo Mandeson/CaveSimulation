@@ -10,6 +10,7 @@ void sigint_handler(int);
 
 int main(int argsc, char *argv[]) {
     signal(SIGINT, sigint_handler);
+    signal(SIGUSR1, sigint_handler);
 
     bool log_to_stdout = false;
     bool skip_start_confirmation = false;
