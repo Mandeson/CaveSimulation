@@ -19,8 +19,6 @@
 
 static void init_shared_memory(SharedMemory *shared_memory) {
     memset(shared_memory, 0, sizeof(SharedMemory));
-
-    shared_memory->guides_using_catwalks = 2;
 }
 
 static int init_semaphores(int semaphores) {
@@ -29,20 +27,25 @@ static int init_semaphores(int semaphores) {
         return -1;
     }
 
-    if (semctl(semaphores, PIPE_WRITE_SEMAPHORE, SETVAL, 1) == -1) {
-        perror("init_semaphores: semctl (PIPE_WRITE_SEMAPHORE)");
+    if (semctl(semaphores, TICKET_REGULAR_SEMAPHORE, SETVAL, 0) == -1) {
+        perror("init_semaphores: semctl (TICKET_REGULAR_SEMAPHORE)");
         return -1;
     }
 
-    if (semctl(semaphores, PIPE_READ_SEMAPHORE, SETVAL, 1) == -1) {
-        perror("init_semaphores: semctl (PIPE_READ_SEMAPHORE)");
+    if (semctl(semaphores, TICKET_PRIORITY_SEMAPHORE, SETVAL, 0) == -1) {
+        perror("init_semaphores: semctl (TICKET_PRIORITY_SEMAPHORE)");
         return -1;
     }
 
-    // if (semctl(semaphores, CATWALK_SEMAPHORE, SETVAL, 1) == -1) {
-    //     perror("init_semaphores: semctl (CATWALK_SEMAPHORE)");
-    //     return -1;
-    // }
+    if (semctl(semaphores, WAITING_BY_GUIDE1_SEMAPHORE, SETVAL, 1) == -1) {
+        perror("init_semaphores: semctl (WAITING_BY_GUIDE1_SEMAPHORE)");
+        return -1;
+    }
+
+    if (semctl(semaphores, WAITING_BY_GUIDE2_SEMAPHORE, SETVAL, 1) == -1) {
+        perror("init_semaphores: semctl (WAITING_BY_GUIDE2_SEMAPHORE)");
+        return -1;
+    }
 
     return 0;
 }
@@ -320,11 +323,11 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         cave_simulation->shared_memory->visitors_finished = 0;
         give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
 
-        uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 10 * 1000);
-        usleep(wait_time);
+        uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 30 * 1000);
+        //usleep(wait_time);
 
         time += wait_time;
-    } while (!cave_simulation->interrupted && time < 1000 * 1000 * 20);
+    } while (!cave_simulation->interrupted && time < 1000 * 1000 * 600);
 
     return CAVE_SIMULATION_SUCCESS;
 }

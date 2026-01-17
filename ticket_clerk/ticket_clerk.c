@@ -56,9 +56,9 @@ static void ticket_clerk_sell_tickets(TicketClerk *ticket_clerk, const VisitorMe
     uint8_t trail_nr;
     const VisitorInfo *info = &request->visitor_info;
     if (info->age > 75 || info->children_count > 0) {
-        trail_nr = 2;
+        trail_nr = 1;
     } else {
-        trail_nr = rand() % 2 + 1;
+        trail_nr = rand() % 2;
     }
 
     int cost = TICKET_COST;
@@ -86,7 +86,7 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
 
     bool terminate = false;
     do {
-        usleep(TICKET_CLERK_DELAY * 1000);
+        //usleep(TICKET_CLERK_DELAY * 1000);
         
         int res;
         do {

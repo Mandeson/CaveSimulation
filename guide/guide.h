@@ -9,6 +9,7 @@ typedef struct {
     int trail_visitors_count;
     Array trail_visitors;
     volatile bool tour_cancelled;
+    bool terminate;
 
     SharedMemory *shared_memory;
     int message_queue;
