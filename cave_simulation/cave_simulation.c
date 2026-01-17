@@ -258,7 +258,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     cave_simulation->shared_memory->ticket_clerk_pid = fork_res;
 
     setpgid(0, 0);
-    signal(SIGUSR1, SIG_DFL);
+    signal(SIGUSR1, SIG_IGN);
 
     take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
 
