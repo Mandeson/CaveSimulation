@@ -1,9 +1,7 @@
 #include "ticket_clerk.h"
 #include "common.h"
-#include <errno.h>
 #include <linux/limits.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ipc.h>
@@ -71,11 +69,7 @@ static void ticket_clerk_sell_tickets(TicketClerk *ticket_clerk, const VisitorMe
     ticket_message.trail_nr = trail_nr;
     ticket_message.cost = cost;
 
-    Message message = {0};
-    message.mtype = request->pid;
-    memcpy(&message.mtext, &ticket_message, sizeof(ticket_message));
-    if (msgsnd(ticket_clerk->message_queue, &message, sizeof(message.mtext), 0) == -1)
-        perror("ticket_clerk_sell_tickets: msgsnd");
+    message_queue_send(ticket_clerk->message_queue, request->pid, &ticket_message, sizeof(ticket_message), "ticket_clerk_sell_tickets");
 }
 
 TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
@@ -91,18 +85,10 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
         int res;
         do {
             Message message;
-            res = msgrcv(ticket_clerk->message_queue, (void *)&message, sizeof(message.mtext), pid,
-                    IPC_NOWAIT);
-            if (res == -1) {
-                if (errno != ENOMSG) {
-                    perror("ticket_clerk_run: msgrcv");
-                    return TICKET_CLERK_RUN_FAIL;
-                }
-            } else if (res != sizeof(message.mtext)) {
-                logger_log(&ticket_clerk->logger,
-                        "ticket_clerk_run: wrong number of bytes received from message queue");
+            res = message_queue_receive(ticket_clerk->message_queue, pid, &message, "ticket_clerk_run", false);
+            if (res == MESSAGE_QUEUE_RECEIVE_FAIL) {
                 return TICKET_CLERK_RUN_FAIL;
-            } else {
+            } else if (res != MESSAGE_QUEUE_RECEIVE_NO_MESSAGE) {
                 if (strcmp(message.mtext, "terminate") == 0) {
                     terminate = true;
                 } else {
@@ -116,7 +102,7 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
                     ticket_clerk_sell_tickets(ticket_clerk, &visitor_message);
                 }
             }
-        } while (res != -1);
+        } while (res != MESSAGE_QUEUE_RECEIVE_NO_MESSAGE);
 
         // Critical section
         take_semaphore(ticket_clerk->semaphores, SHARED_MEMORY_SEMAPHORE);

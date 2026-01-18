@@ -1,6 +1,5 @@
 #include "visitor.h"
 #include <linux/limits.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ipc.h>
@@ -81,25 +80,15 @@ VisitorRes visitor_run(Visitor *visitor) {
     VisitorMessage visitor_message;
     visitor_message.pid = pid;
     visitor_message.visitor_info = visitor->visitor_info;
+    if (message_queue_send(visitor->message_queue, visitor->shared_memory->ticket_clerk_pid,
+            &visitor_message, sizeof(visitor_message), "visitor_run") == MESSAGE_QUEUE_SEND_FAIL)
+        return VISITOR_RUN_FAIL;
 
     Message message = {0};
-    message.mtype = visitor->shared_memory->ticket_clerk_pid;
-    memcpy(message.mtext, (const void *)&visitor_message, sizeof(visitor_message));
-    if (msgsnd(visitor->message_queue, &message, sizeof(message.mtext), 0) == -1) {
-        perror("visitor_run: msgsnd");
-        return VISITOR_RUN_FAIL;
-    }
 
     // Receive the ticket
-    int res = msgrcv(visitor->message_queue, &message, sizeof(message.mtext), pid, 0);
-    if (res == -1) {
-        perror("visitor_run: msgrcv");
+    if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run", true) == MESSAGE_QUEUE_RECEIVE_FAIL)
         return VISITOR_RUN_FAIL;
-    } else if (res != sizeof(message.mtext)) {
-        logger_log(&visitor->logger,
-                "visitor_run: wrong number of bytes received from message queue");
-        return VISITOR_RUN_FAIL;
-    }
 
     TicketMessage ticket_message;
     memcpy(&ticket_message, message.mtext, sizeof(TicketMessage));
@@ -152,7 +141,7 @@ VisitorRes visitor_run(Visitor *visitor) {
     give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
 
     logger_log(&visitor->logger,
-            "Visitor (PID: %d) has finished the tour", pid);
+            "Visitor (PID: %d) shutting down", pid);
 
     return VISITOR_SUCCESS;
 }

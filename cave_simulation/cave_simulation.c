@@ -157,20 +157,23 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
 
     logger_log(&cave_simulation->logger_interface, "Finished destroying visitors");
 
-    Message message = {0};
-    strcpy(message.mtext, "terminate");
+    const char *message = "terminate";
+    size_t len = strlen(message);
 
-    message.mtype = cave_simulation->shared_memory->ticket_clerk_pid;
-    if (msgsnd(cave_simulation->message_queue, (const void *)&message, sizeof(message.mtext), 0) == -1)
-        perror("cave_simulation_destroy: msgsnd (TicketClerk)");
+    if (message_queue_send(cave_simulation->message_queue,
+            cave_simulation->shared_memory->ticket_clerk_pid, message, len,
+            "cave_simulation_destroy terminate (TicketClerk)") == MESSAGE_QUEUE_SEND_FAIL)
+        error = true;
 
-    message.mtype = cave_simulation->shared_memory->guide1_pid;
-    if (msgsnd(cave_simulation->message_queue, (const void *)&message, sizeof(message.mtext), 0) == -1)
-        perror("cave_simulation_destroy: msgsnd (Guide1)");
+    if (message_queue_send(cave_simulation->message_queue,
+            cave_simulation->shared_memory->guide1_pid, message, len,
+            "cave_simulation_destroy terminate (Guide1)") == MESSAGE_QUEUE_SEND_FAIL)
+        error = true;
 
-    message.mtype = cave_simulation->shared_memory->guide2_pid;
-    if (msgsnd(cave_simulation->message_queue, (const void *)&message, sizeof(message.mtext), 0) == -1)
-        perror("cave_simulation_destroy: msgsnd (Guide2)");
+    if (message_queue_send(cave_simulation->message_queue,
+            cave_simulation->shared_memory->guide2_pid, message, len,
+            "cave_simulation_destroy terminate (Guide2)") == MESSAGE_QUEUE_SEND_FAIL)
+        error = true;
 
     // Wait for ticket clerk and guides (if not interrupted)
     for (int i = 0; i < cave_simulation->child_processes; i++) {
@@ -327,7 +330,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         //usleep(wait_time);
 
         time += wait_time;
-    } while (!cave_simulation->interrupted && time < 1000 * 1000 * 600);
+    } while (!cave_simulation->interrupted && time < 1000 * 1000 * 100);
 
     return CAVE_SIMULATION_SUCCESS;
 }

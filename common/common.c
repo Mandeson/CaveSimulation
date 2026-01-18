@@ -74,9 +74,11 @@ int take_semaphore(int semaphores, int number) {
     op.sem_op = -1;
     op.sem_flg = SEM_UNDO;
 
-    if (semop(semaphores, &op, 1) == -1 && errno != EINTR) {
-        perror("take_semaphore: semop");
-        return -1;
+    while (semop(semaphores, &op, 1) == -1) {
+        if (errno != EINTR) {
+            perror("take_semaphore: semop");
+            return -1;
+        }
     }
 
     // if (number == SHARED_MEMORY_SEMAPHORE) {
@@ -116,9 +118,11 @@ int give_semaphore(int semaphores, int number) {
     //     give_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
     // }
 
-    if (semop(semaphores, &op, 1) == -1 && errno != EINTR) {
-        perror("give_semaphore: semop");
-        return -1;
+    while (semop(semaphores, &op, 1) == -1) {
+        if (errno != EINTR) {
+            perror("give_semaphore: semop");
+            return -1;
+        }
     }
 
     return 0;
@@ -139,12 +143,59 @@ int give_semaphore_n(int semaphores, int number, int n) {
 }
 
 int set_semaphore(int semaphores, int number, int n) {
-    if (semctl(semaphores, number, SETVAL, n) == -1) {
-        perror("give_semaphore_n: semop");
-        return -1;
+    while (semctl(semaphores, number, SETVAL, n) == -1) {
+        if (errno != EINTR) {
+            char error[64];
+            snprintf(error, sizeof(error) - 1, "set_semaphore: semctl");
+            perror(error);
+            return -1;
+        }
     }
 
     return 0;
+}
+
+int message_queue_send(int message_queue, long type, const void *data, size_t size, const char *caller) {
+    Message message = {0};
+    if (size > sizeof(message.mtext)) {
+        char error[64];
+        snprintf(error, sizeof(error) - 1, "Error: %s: message too long", caller);
+        perror(error);
+        return MESSAGE_QUEUE_SEND_FAIL;
+    }
+    message.mtype = type;
+    memcpy(message.mtext, data, size);
+    while (msgsnd(message_queue, &message, sizeof(message.mtext), 0) == -1) {
+        if (errno != EINTR) {
+            char error[64];
+            snprintf(error, sizeof(error) - 1, "Error: %s: msgsnd", caller);
+            perror(error);
+            return MESSAGE_QUEUE_SEND_FAIL;
+        }
+    }
+
+    return MESSAGE_QUEUE_SEND_SUCCESS;
+}
+
+int message_queue_receive(int message_queue, long type, Message *message, const char *caller, bool block) {
+    int res;
+    while ((res = msgrcv(message_queue, message, sizeof(message->mtext), type, block ? 0 : IPC_NOWAIT)) == -1) {
+        if (errno == ENOMSG)
+            return MESSAGE_QUEUE_RECEIVE_NO_MESSAGE;
+
+        if (errno != EINTR) {
+            char error[64];
+            snprintf(error, sizeof(error) - 1, "Error: %s: msgrcv", caller);
+            perror(error);
+            return MESSAGE_QUEUE_RECEIVE_FAIL;
+        }
+    }
+    if (res != sizeof(message->mtext)) {
+        fprintf(stderr, "Error: %s: msgrcv: too few bytes received\n", caller);
+        return MESSAGE_QUEUE_RECEIVE_FAIL;
+    }
+
+    return MESSAGE_QUEUE_RECEIVE_SUCCESS;
 }
 
 void logger_interface_new(LoggerInterface *logger, const char *tag) {

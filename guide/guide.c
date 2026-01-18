@@ -55,29 +55,22 @@ GuideRes guide_destroy(Guide *guide) {
     return GUIDE_SUCCESS;
 }
 
-static int receive_message(Guide *guide, int flags) {
+static int receive_message(Guide *guide) {
     Message message;
-    int res = msgrcv(guide->message_queue, (void *)&message, sizeof(message.mtext), getpid(),
-            flags);
-    if (res == -1) {
-        if (errno != ENOMSG) {
-            perror("receive_message: msgrcv");
-            return -1;
-        }
-        return 0;
-    } else if (res != sizeof(message.mtext)) {
-        logger_log(&guide->logger,
-                "receive_message: wrong number of bytes received from message queue");
+    int res = message_queue_receive(guide->message_queue, getpid(), &message, "receive_message", false);
+    if (res == MESSAGE_QUEUE_RECEIVE_FAIL) {
         return -1;
-    } else {
+    } else if (res != MESSAGE_QUEUE_RECEIVE_NO_MESSAGE) {
         if (strcmp(message.mtext, "terminate") == 0) {
             guide->terminate = true;
         } else {
-            logger_log(&guide->logger, "receive_message: unknown message");
+            logger_log(&guide->logger, "Error: receive_message: unknown message");
         }
 
         return 1;
     }
+
+    return 0;
 }
 
 void guide_tour(Guide *guide) {
@@ -131,7 +124,7 @@ GuideRes guide_run(Guide *guide) {
 
         int res;
         do {
-            res = receive_message(guide, IPC_NOWAIT);
+            res = receive_message(guide);
         } while (res == 1);
     } while (!guide->terminate);
 

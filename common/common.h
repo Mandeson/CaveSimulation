@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define SHARED_MEMORY_ID 59
@@ -18,6 +19,13 @@
 
 #define GUIDE_COUNT 2
 #define VISITORS_WAITING_SIZE 1024
+
+#define MESSAGE_QUEUE_SEND_SUCCESS 0
+#define MESSAGE_QUEUE_SEND_FAIL -1
+
+#define MESSAGE_QUEUE_RECEIVE_NO_MESSAGE 1
+#define MESSAGE_QUEUE_RECEIVE_SUCCESS 0
+#define MESSAGE_QUEUE_RECEIVE_FAIL -1
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
@@ -97,6 +105,9 @@ int take_semaphore_n(int semaphores, int number, int n);
 int give_semaphore(int semaphores, int number);
 int give_semaphore_n(int semaphores, int number, int n);
 int set_semaphore(int semaphores, int number, int n);
+int message_queue_send(int message_queue, long type, const void *data, size_t size, const char *caller);
+int message_queue_receive(int message_queue, long type, Message *message, const char *caller, bool block);
+
 void output_log(int semaphores, const SharedMemory *shared_memory, const char *format, ...);
 void logger_interface_new(LoggerInterface *logger, const char *tag);
 void logger_log(const LoggerInterface *logger, const char *format, ...);
