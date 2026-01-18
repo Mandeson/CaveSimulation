@@ -52,10 +52,17 @@ VisitorRes visitor_init(Visitor *visitor) {
 
     logger_interface_new(&visitor->logger, "Visitor");
 
+    if (visitor->shared_memory->interrupted)
+        return VISITOR_INIT_FAIL;
+
     return VISITOR_SUCCESS;
 }
 
 VisitorRes visitor_destroy(Visitor *visitor) {
+    if (visitor->logger_initialized)
+        logger_log(&visitor->logger,
+                "Visitor (PID: %d) destroying", getpid());
+
     if (visitor->shared_memory != NULL && detach_shared_memory(visitor->shared_memory) == -1)
         return VISITOR_DESTROY_FAIL;
 
@@ -66,6 +73,7 @@ VisitorRes visitor_run(Visitor *visitor) {
     pid_t pid = getpid();
     logger_log(&visitor->logger,
             "Running visitor (PID: %d)", pid);
+    visitor->logger_initialized = true;
 
     take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
     visitor->shared_memory->regular_ticket_line_size++;
@@ -141,7 +149,7 @@ VisitorRes visitor_run(Visitor *visitor) {
     give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
 
     logger_log(&visitor->logger,
-            "Visitor (PID: %d) shutting down", pid);
+            "Visitor (PID: %d) finished the tour", pid);
 
     return VISITOR_SUCCESS;
 }

@@ -9,7 +9,6 @@
 
 typedef struct {
     bool disable_guard;
-    volatile bool interrupted;
     int shared_memory_id;
     int message_queue;
     int semaphores;

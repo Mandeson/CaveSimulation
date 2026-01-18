@@ -17,6 +17,7 @@
 
 GuideRes guide_init(Guide *guide) {
     array_create(&guide->trail_visitors, sizeof(int));
+    guide->trail_visitors_initialized = true;
 
     SharedMemory *shared_memory = attach_shared_memory();
     if (shared_memory == NULL)
@@ -47,10 +48,15 @@ GuideRes guide_init(Guide *guide) {
 }
 
 GuideRes guide_destroy(Guide *guide) {
+    if (guide->logger_initialized)
+        logger_log(&guide->logger,
+                "Guide (PID: %d) destroying", getpid());
+
     if (detach_shared_memory(guide->shared_memory) == -1)
         return GUIDE_DESTROY_FAIL;
 
-    array_destroy(&guide->trail_visitors);
+    if (guide->trail_visitors_initialized)
+        array_destroy(&guide->trail_visitors);
 
     return GUIDE_SUCCESS;
 }
@@ -91,6 +97,7 @@ GuideRes guide_run(Guide *guide) {
     pid_t pid = getpid();
     logger_log(&guide->logger,
             "Running guide (PID: %d, guide nr: %d)", pid, guide->number + 1);
+    guide->logger_initialized = true;
 
     int waiting_before_catwalk_semaphore = (guide->number == 1) ? WAITING_BY_GUIDE2_SEMAPHORE : WAITING_BY_GUIDE1_SEMAPHORE;
     int timeout = (guide->shared_memory->T[guide->number]) * 60;
@@ -127,9 +134,6 @@ GuideRes guide_run(Guide *guide) {
             res = receive_message(guide);
         } while (res == 1);
     } while (!guide->terminate);
-
-    logger_log(&guide->logger,
-            "Guide (PID: %d) finished", getpid());
 
     return GUIDE_SUCCESS;
 }

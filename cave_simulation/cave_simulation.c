@@ -145,7 +145,7 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
 
     // Wait only for visitors (not ticket clerk, guides only if interrupted)
     int wait_processes = cave_simulation->child_processes - 1;
-    if (!cave_simulation->interrupted)
+    if (!cave_simulation->shared_memory->interrupted)
         wait_processes -= 2;
     for (int i = 0; i < wait_processes; i++) {
         if (wait(NULL) == -1) {
@@ -330,13 +330,13 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         //usleep(wait_time);
 
         time += wait_time;
-    } while (!cave_simulation->interrupted && time < 1000 * 1000 * 100);
+    } while (!cave_simulation->shared_memory->interrupted && time < 1000 * 1000 * 500);
 
     return CAVE_SIMULATION_SUCCESS;
 }
 
 void cave_simulation_terminate(CaveSimulation *cave_simulation) {
-    cave_simulation->interrupted = true;
+    cave_simulation->shared_memory->interrupted = true;
     signal(SIGUSR1, SIG_IGN);
     kill(0, SIGUSR1);
 }

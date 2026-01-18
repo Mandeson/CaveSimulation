@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -46,6 +47,7 @@ typedef struct {
     int catwalk_pipe[2][2];
 
     volatile bool terminating;
+    volatile atomic_bool interrupted;
     volatile int visitors_finished;
 
     volatile VisitorWaiting visitors_waiting[GUIDE_COUNT][VISITORS_WAITING_SIZE];

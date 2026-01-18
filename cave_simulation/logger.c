@@ -73,6 +73,8 @@ void* logger_thread_function(void *arg) {
         LogMessage log_message = {0};
         int res = msgrcv(logger->message_queue, &log_message, sizeof(log_message.mtext), 1, 0);
         if (res == -1) {
+            if (errno == EINTR)
+                continue;
             perror("logger_thread_function: msgrcv");
             break;
         }

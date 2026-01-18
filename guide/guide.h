@@ -7,14 +7,19 @@
 typedef struct {
     int number;
     int trail_visitors_count;
+
     Array trail_visitors;
+    volatile bool trail_visitors_initialized;
+
     volatile bool tour_cancelled;
     bool terminate;
 
     SharedMemory *shared_memory;
     int message_queue;
     int semaphores;
+
     LoggerInterface logger;
+    volatile bool logger_initialized;
 } Guide;
 
 typedef enum {
