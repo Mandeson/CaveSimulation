@@ -165,6 +165,17 @@ int message_queue_send(int message_queue, long type, const void *data, size_t si
     }
     message.mtype = type;
     memcpy(message.mtext, data, size);
+
+    struct msqid_ds buf;
+
+    if (msgctl(message_queue, IPC_STAT, &buf) == -1) {
+        perror("msgctl");
+        return MESSAGE_QUEUE_SEND_FAIL;
+    }
+    if (buf.msg_cbytes + sizeof(message.mtext) > buf.msg_qbytes) {
+        fprintf(stderr, "Warning: %s: message queue full", caller);
+    }
+
     while (msgsnd(message_queue, &message, sizeof(message.mtext), 0) == -1) {
         if (errno != EINTR) {
             char error[64];
