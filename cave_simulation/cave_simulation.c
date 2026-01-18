@@ -299,22 +299,24 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     uint64_t time = 0;
 
     do {
-        fork_res = fork();
-        if (fork_res == -1) {
-            perror("cave_simulation_run: fork (Visitor)");
-            return CAVE_SIMULATION_RUN_FAIL;
-        }
-        if (fork_res == 0) {
-            signal(SIGINT, SIG_IGN);
-
-            close_catwalk_pipe_output(cave_simulation->shared_memory);
-
-            if (execl("./Visitor", "Visitor", NULL) == -1) {
-                perror("cave_simulation_run: execl (Visitor)");
+        if (cave_simulation->child_processes + 1 < MAX_PROCESSES) {
+            fork_res = fork();
+            if (fork_res == -1) {
+                perror("cave_simulation_run: fork (Visitor)");
                 return CAVE_SIMULATION_RUN_FAIL;
             }
+            if (fork_res == 0) {
+                signal(SIGINT, SIG_IGN);
+
+                close_catwalk_pipe_output(cave_simulation->shared_memory);
+
+                if (execl("./Visitor", "Visitor", NULL) == -1) {
+                    perror("cave_simulation_run: execl (Visitor)");
+                    return CAVE_SIMULATION_RUN_FAIL;
+                }
+            }
+            cave_simulation->child_processes++;
         }
-        cave_simulation->child_processes++;
 
         take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
         for (int i = 0; i < cave_simulation->shared_memory->visitors_finished; i++) {
@@ -330,7 +332,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         //usleep(wait_time);
 
         time += wait_time;
-    } while (!cave_simulation->shared_memory->interrupted && time < 1000 * 1000 * 500);
+    } while (!cave_simulation->shared_memory->interrupted && time < 1000 * 1000 * 2000);
 
     return CAVE_SIMULATION_SUCCESS;
 }

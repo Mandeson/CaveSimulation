@@ -6,6 +6,7 @@
 
 // Maximum delay between new visitors coming to the ticket office
 #define CAVE_SIMULATION_MAX_VISITORS_DELAY 20
+#define MAX_PROCESSES 2000
 
 typedef struct {
     bool disable_guard;
