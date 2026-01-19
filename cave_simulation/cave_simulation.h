@@ -1,7 +1,9 @@
 #pragma once
 
+#include "clock.h"
 #include "common.h"
 #include "logger.h"
+#include "logger_interface.h"
 #include <stdatomic.h>
 #include <sys/ipc.h>
 
@@ -15,7 +17,8 @@ typedef struct {
     int message_queue;
     int semaphores;
     int guard_pid;
-    
+
+    Clock clock;
     int child_processes;
     volatile atomic_int child_processes_finished;
 

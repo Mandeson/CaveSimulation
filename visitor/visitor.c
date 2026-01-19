@@ -7,6 +7,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include "common.h"
+#include "logger_interface.h"
 
 static void init_parameters(Visitor *visitor) {
     // Get time for random seed (microseconds)
@@ -50,7 +51,7 @@ VisitorRes visitor_init(Visitor *visitor) {
     }
     visitor->semaphores = semaphores;
 
-    logger_interface_new(&visitor->logger, "Visitor");
+    logger_interface_new(&visitor->logger, "Visitor", shared_memory);
 
     if (visitor->shared_memory->interrupted)
         return VISITOR_INIT_FAIL;

@@ -164,7 +164,8 @@ int message_queue_send(int message_queue, long type, const void *data, size_t si
         return MESSAGE_QUEUE_SEND_FAIL;
     }
     message.mtype = type;
-    memcpy(message.mtext, data, size);
+    if (data)
+        memcpy(message.mtext, data, size);
 
     struct msqid_ds buf;
 
@@ -207,40 +208,4 @@ int message_queue_receive(int message_queue, long type, Message *message, const 
     }
 
     return MESSAGE_QUEUE_RECEIVE_SUCCESS;
-}
-
-void logger_interface_new(LoggerInterface *logger, const char *tag) {
-    strncpy(logger->tag, tag, sizeof(logger->tag) - 1);
-
-    logger->logger_message_queue = get_message_queue(LOGGER_MESSAGE_QUEUE_ID);
-}
-
-void logger_log(const LoggerInterface *logger, const char *format, ...) {
-    va_list arg;
-    LogMessage message;
-    size_t size = sizeof(message.mtext) - 1 - strlen(logger->tag) - 2;
-    char *string = malloc(size);
-    if (string == NULL) {
-        perror("logger_log: malloc");
-        return;
-    }
-
-    va_start(arg, format);
-    vsnprintf(string, size - 1, format, arg);
-    va_end(arg);
-
-    message.mtype = 1;
-    strncpy(message.mtext, logger->tag, sizeof(message.mtext) - 1);
-    strncat(message.mtext, ": ", sizeof(message.mtext) - 1);
-    strncat(message.mtext, string, sizeof(message.mtext) - 1);
-    size_t len = strlen(message.mtext);
-
-    while (msgsnd(logger->logger_message_queue, &message, len, 0) == -1) {
-        if (errno != EINTR) {
-            perror("logger_log: msgsnd");
-            break;
-        }
-    }
-
-    free(string);
 }

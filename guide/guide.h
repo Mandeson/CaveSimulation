@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include "common.h"
+#include "logger_interface.h"
 #include "util/array.h"
 
 typedef struct {

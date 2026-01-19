@@ -35,7 +35,7 @@ TicketClerkRes ticket_clerk_init(TicketClerk *ticket_clerk) {
     }
     ticket_clerk->semaphores = semaphores;
 
-    logger_interface_new(&ticket_clerk->logger, "TicketClerk");
+    logger_interface_new(&ticket_clerk->logger, "TicketClerk", shared_memory);
 
     return TICKET_CLERK_SUCCESS;
 }

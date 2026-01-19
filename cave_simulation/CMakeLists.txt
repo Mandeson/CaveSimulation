@@ -4,5 +4,6 @@ set(TARGET CaveSimulation)
 add_executable(${TARGET} "main.c"
                          "cave_simulation.c"
                          "operations.c"
-                         "logger.c")
+                         "logger.c"
+                         "clock.c")
 target_link_libraries(${TARGET} common Threads::Threads)

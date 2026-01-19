@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "logger_interface.h"
 #include <stdbool.h>
 
 // Delay between ticket sales

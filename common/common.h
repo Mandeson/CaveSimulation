@@ -11,12 +11,13 @@
 #define LOGGER_MESSAGE_QUEUE_ID 61
 
 #define SEMAPHORES_ID 62
-#define NSEMAPHORES 5
+#define NSEMAPHORES 6
 #define SHARED_MEMORY_SEMAPHORE 0
 #define TICKET_REGULAR_SEMAPHORE 1
 #define TICKET_PRIORITY_SEMAPHORE 2
 #define WAITING_BY_GUIDE1_SEMAPHORE 3
 #define WAITING_BY_GUIDE2_SEMAPHORE 4
+#define CATWALK_SEMAPHORE 5
 
 #define GUIDE_COUNT 2
 #define VISITORS_WAITING_SIZE 1024
@@ -36,9 +37,13 @@ typedef struct {
 } VisitorWaiting;
 
 typedef struct {
+    int Tp;
+    int Tk;
     int N[2];
     int T[2];
     int K; // capacity of the catwalks
+
+    volatile atomic_int time;
 
     int ticket_clerk_pid;
     int guide1_pid;
@@ -56,19 +61,9 @@ typedef struct {
 } SharedMemory;
 
 typedef struct {
-    int logger_message_queue;
-    char tag[16];
-} LoggerInterface;
-
-typedef struct {
     long mtype;
     char mtext[16];
 } Message;
-
-typedef struct {
-    long mtype;
-    char mtext[256];
-} LogMessage;
 
 typedef struct {
     int age;
@@ -108,7 +103,3 @@ int give_semaphore_n(int semaphores, int number, int n);
 int set_semaphore(int semaphores, int number, int n);
 int message_queue_send(int message_queue, long type, const void *data, size_t size, const char *caller);
 int message_queue_receive(int message_queue, long type, Message *message, const char *caller, bool block);
-
-void output_log(int semaphores, const SharedMemory *shared_memory, const char *format, ...);
-void logger_interface_new(LoggerInterface *logger, const char *tag);
-void logger_log(const LoggerInterface *logger, const char *format, ...);

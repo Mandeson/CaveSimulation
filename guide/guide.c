@@ -1,9 +1,9 @@
 #include "guide.h"
 #include <linux/limits.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ipc.h>
@@ -41,7 +41,7 @@ GuideRes guide_init(Guide *guide) {
     guide->number = (getpid() == guide->shared_memory->guide2_pid) ? 1 : 0;
     give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
-    logger_interface_new(&guide->logger, "Guide");
+    logger_interface_new(&guide->logger, "Guide", shared_memory);
 
     return GUIDE_SUCCESS;
 }
@@ -83,12 +83,22 @@ void guide_tour(Guide *guide) {
             "Guide of trail %d is starting the tour with %d visitors", guide->number + 1,
             guide->trail_visitors_count);
 
-    size_t person_space = PIPE_BUF / guide->shared_memory->K;
-    void *buffer = malloc(person_space);
+    // take_semaphore(guide->semaphores, CATWALK_SEMAPHORE);
 
-    
+    // for (size_t i = 0; i < guide->trail_visitors.size; i++) {
+    //     int visitor_pid = ((int *)guide->trail_visitors.ptr)[i];
+    //     message_queue_send(guide->message_queue, visitor_pid, NULL, 0, "guide_tour");
+    // }
 
-    free(buffer);
+    // size_t person_space = PIPE_BUF / guide->shared_memory->K;
+    // void *buffer = malloc(person_space);
+
+    // give_semaphore(guide->semaphores, CATWALK_SEMAPHORE);
+
+    // free(buffer);
+
+    logger_log(&guide->logger,
+            "Guide of trail %d is ending the tour", guide->number + 1);
 
     array_clear(&guide->trail_visitors);
     guide->trail_visitors_count = 0;
@@ -147,7 +157,7 @@ GuideRes guide_run(Guide *guide) {
         }
 
         int sleep_time = 1;
-        //usleep(sleep_time * 1000);
+        // usleep(sleep_time * 1000);
         timeout_counter += sleep_time;
 
         int res;

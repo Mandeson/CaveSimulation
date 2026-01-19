@@ -47,7 +47,23 @@ static int init_semaphores(int semaphores) {
         return -1;
     }
 
+    if (semctl(semaphores, CATWALK_SEMAPHORE, SETVAL, 1) == -1) {
+        perror("init_semaphores: semctl (CATWALK_SEMAPHORE)");
+        return -1;
+    }
+
     return 0;
+}
+
+static void init_parameters(CaveSimulation *cave_simulation) {
+    SharedMemory *shared_memory = cave_simulation->shared_memory;
+    shared_memory->Tp = 11;
+    shared_memory->Tk = 18;
+    shared_memory->N[0] = 5;
+    shared_memory->N[1] = 5;
+    shared_memory->T[0] = 1;
+    shared_memory->T[1] = 1;
+    shared_memory->K = 3;
 }
 
 CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log_to_stdout,
@@ -61,10 +77,19 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log
     gettimeofday(&time, NULL);
     srand(time.tv_usec);
 
+    int shared_memory = create_shared_memory(&cave_simulation->shared_memory);
+    if (shared_memory == -1)
+        return CAVE_SIMULATION_INIT_FAIL;
+    cave_simulation->shared_memory_id = shared_memory;
+    init_shared_memory(cave_simulation->shared_memory);
+
+    clock_init(&cave_simulation->clock, cave_simulation->shared_memory);
+
     if (logger_init(&cave_simulation->logger, log_to_stdout) == -1)
         return CAVE_SIMULATION_INIT_FAIL;
 
-    logger_interface_new(&cave_simulation->logger_interface, "CaveSimulation");
+    logger_interface_new(&cave_simulation->logger_interface, "CaveSimulation",
+            cave_simulation->shared_memory);
 
     if (!skip_start_confirmation) {
         printf("Press enter to start simulation ");
@@ -75,12 +100,6 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log
     }
 
     logger_log(&cave_simulation->logger_interface, "Initializing cave simulation");
-
-    int shared_memory = create_shared_memory(&cave_simulation->shared_memory);
-    if (shared_memory == -1)
-        return CAVE_SIMULATION_INIT_FAIL;
-    cave_simulation->shared_memory_id = shared_memory;
-    init_shared_memory(cave_simulation->shared_memory);
 
     int message_queue = create_message_queue(MESSAGE_QUEUE_ID);
     if (message_queue == -1) {
@@ -111,6 +130,8 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log
         destroy_shared_memory(&cave_simulation->shared_memory, shared_memory);
         return CAVE_SIMULATION_INIT_FAIL;
     }
+
+    init_parameters(cave_simulation);
 
     return CAVE_SIMULATION_SUCCESS;
 }
@@ -193,23 +214,15 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     if (destroy_message_queue(cave_simulation->message_queue) == -1)
         error = true;
 
+    logger_destroy(&cave_simulation->logger);
+    clock_destroy(&cave_simulation->clock);
+
     if (destroy_shared_memory(&cave_simulation->shared_memory,
             cave_simulation->shared_memory_id) == -1) {
         error = true;
     }
 
-    logger_destroy(&cave_simulation->logger);
-
     return error ? CAVE_SIMULATION_DESTROY_FAIL : CAVE_SIMULATION_SUCCESS;
-}
-
-static void init_parameters(CaveSimulation *cave_simulation) {
-    SharedMemory *shared_memory = cave_simulation->shared_memory;
-    shared_memory->N[0] = 5;
-    shared_memory->N[1] = 5;
-    shared_memory->T[0] = 1;
-    shared_memory->T[1] = 1;
-    shared_memory->K = 3;
 }
 
 static int spawn_guide(CaveSimulation *cave_simulation) {
@@ -242,11 +255,9 @@ static void *child_wait_thread_function(void *arg) {
     return NULL;
 }
 
-CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
+CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {    
     logger_log(&cave_simulation->logger_interface,
             "Running cave simulation (PID: %d)", getpid());
-    
-    init_parameters(cave_simulation);
 
     int fork_res = fork();
     if (fork_res == -1) {
@@ -305,7 +316,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         cave_simulation->child_processes++;
     }
 
-    uint64_t time = 0;
+    int total_simulation_time = (cave_simulation->shared_memory->Tk - cave_simulation->shared_memory->Tp) * 3600;
 
     do {
         if (cave_simulation->child_processes - cave_simulation->child_processes_finished + 1
@@ -330,9 +341,8 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
 
         uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 1000);
         //usleep(wait_time);
-
-        time += wait_time;
-    } while (!cave_simulation->shared_memory->interrupted && time < 1000 * 1000 * 20);
+    } while (!cave_simulation->shared_memory->interrupted && cave_simulation->shared_memory->time
+        < total_simulation_time);
 
     return CAVE_SIMULATION_SUCCESS;
 }

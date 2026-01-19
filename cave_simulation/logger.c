@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "common.h"
+#include "logger_interface.h"
 #include "operations.h"
 
 int logger_init(Logger *logger, bool log_to_stdout) {
@@ -98,7 +98,7 @@ void* logger_thread_function(void *arg) {
         memcpy(message, log_message.mtext, res);
         message[res] = 0;
 
-        if (strcmp(log_message.mtext, TERMINATE_TEXT) == 0)
+        if (strcmp(message, TERMINATE_TEXT) == 0)
             break;
 
         if (logger->log_to_stdout) {
