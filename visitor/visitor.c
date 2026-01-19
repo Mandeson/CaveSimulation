@@ -144,10 +144,6 @@ VisitorRes visitor_run(Visitor *visitor) {
         return VISITOR_RUN_FAIL;
     }
 
-    take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
-    visitor->shared_memory->visitors_finished++;
-    give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
-
     logger_log(&visitor->logger,
             "Visitor (PID: %d) finished the tour", pid);
 

@@ -48,7 +48,6 @@ typedef struct {
 
     volatile bool terminating;
     volatile atomic_bool interrupted;
-    volatile int visitors_finished;
 
     volatile VisitorWaiting visitors_waiting[GUIDE_COUNT][VISITORS_WAITING_SIZE];
     volatile int priority_ticket_line_size;

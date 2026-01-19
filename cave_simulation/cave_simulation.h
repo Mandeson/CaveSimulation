@@ -2,22 +2,26 @@
 
 #include "common.h"
 #include "logger.h"
+#include <stdatomic.h>
 #include <sys/ipc.h>
 
 // Maximum delay between new visitors coming to the ticket office
 #define CAVE_SIMULATION_MAX_VISITORS_DELAY 20
-#define MAX_PROCESSES 2000
+#define MAX_PROCESSES 500
 
 typedef struct {
     bool disable_guard;
     int shared_memory_id;
     int message_queue;
     int semaphores;
-    int child_processes;
     int guard_pid;
+    
+    int child_processes;
+    volatile atomic_int child_processes_finished;
 
     Logger logger;
     LoggerInterface logger_interface;
+    pthread_t child_wait_thread;
 
     SharedMemory *shared_memory;
 } CaveSimulation;

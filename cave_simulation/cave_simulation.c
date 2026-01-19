@@ -144,16 +144,14 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     bool error = false;
 
     // Wait only for visitors (not ticket clerk, guides only if interrupted)
-    int wait_processes = cave_simulation->child_processes - 1;
+    int leave_processes = 1; // Ticket clerk
     if (!cave_simulation->shared_memory->interrupted)
-        wait_processes -= 2;
-    for (int i = 0; i < wait_processes; i++) {
-        if (wait(NULL) == -1) {
-            perror("cave_simulation_destroy: wait");
-            error = true;
-        }
+        leave_processes += GUIDE_COUNT;
+    logger_log(&cave_simulation->logger_interface, "Waiting for visitors to finish");
+    while (cave_simulation->child_processes - cave_simulation->child_processes_finished
+            > leave_processes) {
+        usleep(1000);
     }
-    cave_simulation->child_processes -= wait_processes;
 
     logger_log(&cave_simulation->logger_interface, "Finished destroying visitors");
 
@@ -176,12 +174,12 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
         error = true;
 
     // Wait for ticket clerk and guides (if not interrupted)
-    for (int i = 0; i < cave_simulation->child_processes; i++) {
-        if (wait(NULL) == -1) {
-            perror("cave_simulation_destroy: wait");
-            error = true;
-        }
+    while (cave_simulation->child_processes > cave_simulation->child_processes_finished) {
+        usleep(1000);
     }
+    logger_log(&cave_simulation->logger_interface, "Total number of processes run: %d",
+            cave_simulation->child_processes);
+    pthread_cancel(cave_simulation->child_wait_thread);
 
     close_catwalk_pipe_input(cave_simulation->shared_memory);
     close_catwalk_pipe_output(cave_simulation->shared_memory);
@@ -235,6 +233,15 @@ static int spawn_guide(CaveSimulation *cave_simulation) {
     return fork_res;
 }
 
+static void *child_wait_thread_function(void *arg) {
+    CaveSimulation *cave_simulation = (CaveSimulation *)arg;
+    while (true) {
+        if (wait(NULL) != -1)
+            cave_simulation->child_processes_finished++;
+    }
+    return NULL;
+}
+
 CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     logger_log(&cave_simulation->logger_interface,
             "Running cave simulation (PID: %d)", getpid());
@@ -262,6 +269,8 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
 
     setpgid(0, 0);
     signal(SIGUSR1, SIG_IGN);
+
+    pthread_create(&cave_simulation->child_wait_thread, NULL, child_wait_thread_function, cave_simulation);
 
     take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
 
@@ -299,7 +308,8 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     uint64_t time = 0;
 
     do {
-        if (cave_simulation->child_processes + 1 < MAX_PROCESSES) {
+        if (cave_simulation->child_processes - cave_simulation->child_processes_finished + 1
+                < MAX_PROCESSES) {
             fork_res = fork();
             if (fork_res == -1) {
                 perror("cave_simulation_run: fork (Visitor)");
@@ -318,21 +328,11 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
             cave_simulation->child_processes++;
         }
 
-        take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
-        for (int i = 0; i < cave_simulation->shared_memory->visitors_finished; i++) {
-            if (wait(NULL) == -1)
-                perror("cave_simulation_run: wait");
-            else
-                cave_simulation->child_processes--;
-        }
-        cave_simulation->shared_memory->visitors_finished = 0;
-        give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
-
-        uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 30 * 1000);
+        uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 1000);
         //usleep(wait_time);
 
         time += wait_time;
-    } while (!cave_simulation->shared_memory->interrupted && time < 1000 * 1000 * 2000);
+    } while (!cave_simulation->shared_memory->interrupted && time < 1000 * 1000 * 20);
 
     return CAVE_SIMULATION_SUCCESS;
 }
