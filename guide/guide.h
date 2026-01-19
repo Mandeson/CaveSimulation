@@ -6,6 +6,8 @@
 
 typedef struct {
     int number;
+    int waiting_by_guide_semaphore;
+    
     int trail_visitors_count;
 
     Array trail_visitors;

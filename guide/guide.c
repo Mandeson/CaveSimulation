@@ -1,5 +1,4 @@
 #include "guide.h"
-#include <errno.h>
 #include <linux/limits.h>
 #include <stdbool.h>
 #include <sys/ioctl.h>
@@ -81,16 +80,54 @@ static int receive_message(Guide *guide) {
 
 void guide_tour(Guide *guide) {
     logger_log(&guide->logger,
-            "Guide of trail %d is starting the tour", guide->number + 1);
+            "Guide of trail %d is starting the tour with %d visitors", guide->number + 1,
+            guide->trail_visitors_count);
 
     size_t person_space = PIPE_BUF / guide->shared_memory->K;
     void *buffer = malloc(person_space);
 
-    sleep(1000000);
+    
 
     free(buffer);
 
+    array_clear(&guide->trail_visitors);
+    guide->trail_visitors_count = 0;
+
     guide->tour_cancelled = false;
+}
+
+// Returns true if there are enough visitors to start the tour
+bool greet_visitors(Guide *guide) {
+    take_semaphore(guide->semaphores, guide->waiting_by_guide_semaphore);
+
+    bool enough_visitors = false;
+
+    for (int i = 0; i < VISITORS_WAITING_SIZE; i++) {
+        volatile VisitorWaiting *visitor_waiting =
+                &guide->shared_memory->visitors_waiting[guide->number][i];
+        if (visitor_waiting->pid != 0) {
+            if (guide->trail_visitors_count + 1 + visitor_waiting->children_count
+                    <= guide->shared_memory->N[guide->number]) {
+                guide->trail_visitors_count += 1 + visitor_waiting->children_count;
+                int *pid = array_add_empty(&guide->trail_visitors);
+                *pid = visitor_waiting->pid;
+                logger_log(&guide->logger, "%d greets visitor %d", guide->number + 1, *pid);
+
+                visitor_waiting->pid = 0;
+            } else {
+                enough_visitors = true;
+            }
+        }
+    }
+    
+    give_semaphore(guide->semaphores, guide->waiting_by_guide_semaphore);
+
+    // Even if there is no one left waiting, if the number of visitors is equal to the limit,
+    // start the tour
+    if (guide->trail_visitors_count == guide->shared_memory->N[guide->number])
+        enough_visitors = true;
+
+    return enough_visitors;
 }
 
 GuideRes guide_run(Guide *guide) {
@@ -99,35 +136,19 @@ GuideRes guide_run(Guide *guide) {
             "Running guide (PID: %d, guide nr: %d)", pid, guide->number + 1);
     guide->logger_initialized = true;
 
-    int waiting_before_catwalk_semaphore = (guide->number == 1) ? WAITING_BY_GUIDE2_SEMAPHORE : WAITING_BY_GUIDE1_SEMAPHORE;
+    guide->waiting_by_guide_semaphore = (guide->number == 1) ? WAITING_BY_GUIDE2_SEMAPHORE
+            : WAITING_BY_GUIDE1_SEMAPHORE;
     int timeout = (guide->shared_memory->T[guide->number]) * 60;
-
-    bool terminate = false;
     int timeout_counter = 0;
     do {
+        if (greet_visitors(guide) || (timeout_counter >= timeout && guide->trail_visitors_count > 0)) {
+            guide_tour(guide);
+            timeout_counter = 0;
+        }
+
         int sleep_time = 1;
-        usleep(sleep_time * 1000);
+        //usleep(sleep_time * 1000);
         timeout_counter += sleep_time;
-
-        // Go on the tour if the limit of N people is reached or if no new visitors are coming,
-        // at least one person is waiting and the timeout is reached
-        // if (semaphore_value == 0 || (guide->shared_memory->terminating
-        //         && semaphore_value < guide->shared_memory->N[guide->number]
-        //         && timeout_counter >= timeout)) {
-        //     give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
-
-        //     set_semaphore(guide->semaphores, trail_semaphore, 0);
-        //     timeout_counter = 0;
-
-        //     while (guide->trail_visitors_count <
-        //             guide->shared_memory->N[guide->number] - semaphore_value) {
-        //         receive_message(guide, 0);
-        //     }
-
-        //     guide_tour(guide);
-        // } else {
-        //     give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
-        // }
 
         int res;
         do {
