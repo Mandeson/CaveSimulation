@@ -98,6 +98,12 @@ VisitorRes visitor_run(Visitor *visitor) {
     if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run", true) == MESSAGE_QUEUE_RECEIVE_FAIL)
         return VISITOR_RUN_FAIL;
 
+    if (strcmp(message.mtext, "no-tickets") == 0) {
+        logger_log(&visitor->logger,
+                "Visitor (PID: %d) received no tickets", pid);
+        return VISITOR_RUN_FAIL;
+    }
+
     TicketMessage ticket_message;
     memcpy(&ticket_message, message.mtext, sizeof(TicketMessage));
 
@@ -108,41 +114,7 @@ VisitorRes visitor_run(Visitor *visitor) {
     logger_log(&visitor->logger,
             "Visitor (PID: %d) approaches the guide of trail %d", pid, ticket_message.trail_nr + 1);
 
-    int children_count = visitor->visitor_info.children_count;
     
-    int guide_semaphore = (ticket_message.trail_nr == 1)
-            ? WAITING_BY_GUIDE2_SEMAPHORE : WAITING_BY_GUIDE1_SEMAPHORE;
-    take_semaphore(visitor->semaphores, guide_semaphore);
-    bool found_spot = false;
-
-    // Find a spot for the visitor
-    for (int i = 0; i < VISITORS_WAITING_SIZE; i++) {
-        volatile VisitorWaiting *visitor_waiting = &visitor->shared_memory->visitors_waiting[ticket_message.trail_nr][i];
-        if (visitor_waiting->pid == 0) {
-            visitor_waiting->pid = pid;
-            visitor_waiting->children_count = children_count;
-            found_spot = true;
-            break;
-        }
-    }
-
-    int visitors_count = 0;
-    for (int i = 0; i < VISITORS_WAITING_SIZE; i++) {
-        if (visitor->shared_memory->visitors_waiting[ticket_message.trail_nr][i].pid != 0)
-            visitors_count += visitor->shared_memory->visitors_waiting[ticket_message.trail_nr][i].children_count + 1;
-    }
-
-    give_semaphore(visitor->semaphores, guide_semaphore);
-
-    if (found_spot) {
-        logger_log(&visitor->logger,
-                "Visitor (PID: %d) has found a spot near guide %d, %d visitors waiting",
-                pid, ticket_message.trail_nr + 1, visitors_count);
-    } else {
-        logger_log(&visitor->logger,
-                "Error: visitor_run: no spot found near guide %d", ticket_message.trail_nr + 1);
-        return VISITOR_RUN_FAIL;
-    }
 
     logger_log(&visitor->logger,
             "Visitor (PID: %d) finished the tour", pid);

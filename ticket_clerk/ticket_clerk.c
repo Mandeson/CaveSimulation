@@ -50,6 +50,49 @@ TicketClerkRes ticket_clerk_destroy(TicketClerk *ticket_clerk) {
     return TICKET_CLERK_SUCCESS;
 }
 
+static int ticket_clerk_add_visitor(TicketClerk *ticket_clerk, const VisitorMessage *request, int trail_nr) {
+    int children_count = request->visitor_info.children_count;
+    
+    int guide_semaphore = (trail_nr == 1)
+            ? WAITING_BY_GUIDE2_SEMAPHORE : WAITING_BY_GUIDE1_SEMAPHORE;
+    take_semaphore(ticket_clerk->semaphores, guide_semaphore);
+    bool found_spot = false;
+
+    // Find a spot for the visitor
+    for (int i = 0; i < VISITORS_WAITING_SIZE; i++) {
+        volatile VisitorWaiting *visitor_waiting =
+                &ticket_clerk->shared_memory->visitors_waiting[trail_nr][i];
+        if (visitor_waiting->pid == 0) {
+            visitor_waiting->pid = request->pid;
+            visitor_waiting->children_count = children_count;
+            found_spot = true;
+            break;
+        }
+    }
+
+    int visitors_count = 0;
+    for (int i = 0; i < VISITORS_WAITING_SIZE; i++) {
+        if (ticket_clerk->shared_memory->visitors_waiting[trail_nr][i].pid != 0) {
+            visitors_count += ticket_clerk->shared_memory
+                ->visitors_waiting[trail_nr][i].children_count + 1;
+        }
+    }
+
+    give_semaphore(ticket_clerk->semaphores, guide_semaphore);
+
+    if (found_spot) {
+        logger_log(&ticket_clerk->logger,
+                "Visitor (PID: %d) has found a spot near guide %d, %d visitors waiting",
+                request->pid, trail_nr + 1, visitors_count);
+    } else {
+        logger_log(&ticket_clerk->logger,
+                "Error: ticket_clerk_add_visitor: no spot found near guide %d", trail_nr + 1);
+        return -1;
+    }
+
+    return 0;
+}
+
 static void ticket_clerk_sell_tickets(TicketClerk *ticket_clerk, const VisitorMessage *request) {
     uint8_t trail_nr;
     const VisitorInfo *info = &request->visitor_info;
@@ -59,17 +102,24 @@ static void ticket_clerk_sell_tickets(TicketClerk *ticket_clerk, const VisitorMe
         trail_nr = rand() % 2;
     }
 
-    int cost = TICKET_COST;
-    for (int i = 0; i < info->children_count; i++) {
-        if (info->children_ages[i] >= 3)
-            cost += TICKET_COST;
+    if (ticket_clerk_add_visitor(ticket_clerk, request, trail_nr) == 0) {
+        int cost = TICKET_COST;
+        for (int i = 0; i < info->children_count; i++) {
+            if (info->children_ages[i] >= 3)
+                cost += TICKET_COST;
+        }
+
+        TicketMessage ticket_message;
+        ticket_message.trail_nr = trail_nr;
+        ticket_message.cost = cost;
+
+        message_queue_send(ticket_clerk->message_queue, request->pid, &ticket_message,
+                sizeof(ticket_message), "ticket_clerk_sell_tickets");
+    } else {
+        const char *message = "no-tickets";
+        message_queue_send(ticket_clerk->message_queue, request->pid, message,
+                strlen(message) + 1, "ticket_clerk_sell_tickets");
     }
-
-    TicketMessage ticket_message;
-    ticket_message.trail_nr = trail_nr;
-    ticket_message.cost = cost;
-
-    message_queue_send(ticket_clerk->message_queue, request->pid, &ticket_message, sizeof(ticket_message), "ticket_clerk_sell_tickets");
 }
 
 TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
@@ -99,6 +149,7 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
                             "children: %d and sends the ticket",
                             visitor_message.pid, visitor_message.visitor_info.age,
                             visitor_message.visitor_info.children_count);
+
                     ticket_clerk_sell_tickets(ticket_clerk, &visitor_message);
                 }
             }
