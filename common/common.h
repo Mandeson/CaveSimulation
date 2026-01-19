@@ -68,7 +68,7 @@ typedef struct {
 
 typedef struct {
     long mtype;
-    char mtext[248];
+    char mtext[256];
 } LogMessage;
 
 typedef struct {

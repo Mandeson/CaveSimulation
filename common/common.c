@@ -230,13 +230,16 @@ void logger_log(const LoggerInterface *logger, const char *format, ...) {
     va_end(arg);
 
     message.mtype = 1;
-    message.mtext[0] = '\0';
-    strcat(message.mtext, logger->tag);
-    strcat(message.mtext, ": ");
-    strcat(message.mtext, string);
+    strncpy(message.mtext, logger->tag, sizeof(message.mtext) - 1);
+    strncat(message.mtext, ": ", sizeof(message.mtext) - 1);
+    strncat(message.mtext, string, sizeof(message.mtext) - 1);
+    size_t len = strlen(message.mtext);
 
-    if (msgsnd(logger->logger_message_queue, &message, sizeof(message.mtext), 0) == -1) {
-        perror("logger_log: msgsnd");
+    while (msgsnd(logger->logger_message_queue, &message, len, 0) == -1) {
+        if (errno != EINTR) {
+            perror("logger_log: msgsnd");
+            break;
+        }
     }
 
     free(string);

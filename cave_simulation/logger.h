@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <pthread.h>
 
+#define TERMINATE_TEXT "terminate"
+
 typedef struct {
     bool log_to_stdout;
 

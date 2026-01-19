@@ -57,7 +57,18 @@ int logger_init(Logger *logger, bool log_to_stdout) {
 }
 
 void logger_destroy(Logger *logger) {
-    pthread_cancel(logger->logger_thread);
+    fflush(stdout);
+
+    LogMessage message = {0};
+    message.mtype = 1;
+    strcpy(message.mtext, TERMINATE_TEXT);
+
+    while (msgsnd(logger->message_queue, &message, sizeof(TERMINATE_TEXT), 0) == -1) {
+        if (errno != EINTR) {
+            perror("logger_destroy: msgsnd");
+            break;
+        }
+    }
     pthread_join(logger->logger_thread, NULL);
 
     close(logger->file);
@@ -78,27 +89,27 @@ void* logger_thread_function(void *arg) {
             perror("logger_thread_function: msgrcv");
             break;
         }
-        if (res != sizeof(log_message.mtext)) {
-            fprintf(stderr, "logger_thread_function: wrong number of bytes received"
-                    "from message queue\n");
+        if (res == 0) {
+            fprintf(stderr, "logger_thread_function: empty message\n");
             continue;
         }
 
+        char message[sizeof(log_message.mtext) + 1];
+        memcpy(message, log_message.mtext, res);
+        message[res] = 0;
+
+        if (strcmp(log_message.mtext, TERMINATE_TEXT) == 0)
+            break;
+
         if (logger->log_to_stdout) {
             // Print log message to stdout
-            puts(log_message.mtext);
-            fflush(stdout);
+            puts(message);
         }
 
-        char message[sizeof(log_message.mtext)];
-        strcpy(message, log_message.mtext);
-
-        int len = strlen(message);
-
         // Add new line character
-        message[len] = '\n';
+        message[res] = '\n';
 
-        if (write(logger->file, message, len + 1) == -1) {
+        if (write(logger->file, message, res + 1) == -1) {
             perror("logger_thread_function: write");
             break;
         }
