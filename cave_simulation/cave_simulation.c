@@ -361,7 +361,6 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
             last_time = cave_simulation->shared_memory->time;
             printf("Heartbeat\n");
             fflush(stdout);
-            logger_log(&cave_simulation->logger_interface, "Heartbeat");
         }
 
         uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 1000);
@@ -377,7 +376,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
 void cave_simulation_terminate(CaveSimulation *cave_simulation) {
     cave_simulation->shared_memory->interrupted = true;
 
-    logger_log(&cave_simulation->logger_interface, "Interrupted");
+    //logger_log(&cave_simulation->logger_interface, "Interrupted");
 
     if (!cave_simulation->simulation_running) {
         cave_simulation_destroy(cave_simulation);

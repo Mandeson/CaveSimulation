@@ -63,8 +63,8 @@ VisitorRes visitor_init(Visitor *visitor) {
 }
 
 VisitorRes visitor_destroy(Visitor *visitor) {
-    if (visitor->logger_initialized)
-        logger_log(&visitor->logger, "Destroying");
+    // if (visitor->logger_initialized)
+    //     logger_log(&visitor->logger, "Destroying");
 
     if (visitor->shared_memory != NULL && detach_shared_memory(visitor->shared_memory) == -1)
         return VISITOR_DESTROY_FAIL;

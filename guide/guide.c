@@ -52,9 +52,9 @@ GuideRes guide_init(Guide *guide) {
 }
 
 GuideRes guide_destroy(Guide *guide) {
-    if (guide->logger_initialized)
-        logger_log(&guide->logger,
-                "Guide (PID: %d) destroying", getpid());
+    // if (guide->logger_initialized)
+    //     logger_log(&guide->logger,
+    //             "Guide (PID: %d) destroying", getpid());
 
     if (guide->trail_visitors_initialized)
         array_destroy(&guide->trail_visitors);

@@ -42,9 +42,9 @@ TicketClerkRes ticket_clerk_init(TicketClerk *ticket_clerk) {
 }
 
 TicketClerkRes ticket_clerk_destroy(TicketClerk *ticket_clerk) {
-    if (ticket_clerk->logger_initialized)
-        logger_log(&ticket_clerk->logger,
-                "Destroying ticket clerk (PID: %d)", getpid());
+    // if (ticket_clerk->logger_initialized)
+    //     logger_log(&ticket_clerk->logger,
+    //             "Destroying ticket clerk (PID: %d)", getpid());
 
     if (ticket_clerk->shared_memory != NULL
             && detach_shared_memory(ticket_clerk->shared_memory) == -1)
