@@ -38,9 +38,8 @@ int detach_shared_memory(SharedMemory *shared_memory) {
     int res = shmdt((void *)shared_memory);
     if (res == -1) {
         perror("detach_shared_memory: shmdt");
-        LoggerInterface li;
-        logger_interface_new(&li, "common", NULL);
-        logger_log(&li, "detach_shared_memory: error ptr: %ld PID: %d", (long)shared_memory, getpid());
+        fprintf(stderr, "detach_shared_memory: error ptr: %ld PID: %d\n", (long)shared_memory, getpid());
+        fflush(stderr);
     }
     return res;
 }
