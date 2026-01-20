@@ -94,7 +94,7 @@ typedef struct {
 } VisitorOnCatwalk;
 
 SharedMemory *attach_shared_memory();
-int detach_shared_memory(SharedMemory *shared_memory);
+int detach_shared_memory(SharedMemory **shared_memory);
 int get_message_queue(int id);
 int get_semaphores();
 int take_semaphore(int semaphores, int number);

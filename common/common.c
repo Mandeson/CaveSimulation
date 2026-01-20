@@ -1,5 +1,4 @@
 #include "common.h"
-#include "logger_interface.h"
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -34,11 +33,13 @@ SharedMemory *attach_shared_memory() {
     return (SharedMemory *)shared_memory_addr;
 }
 
-int detach_shared_memory(SharedMemory *shared_memory) {
-    int res = shmdt((void *)shared_memory);
+int detach_shared_memory(SharedMemory **shared_memory) {
+    SharedMemory *ptr = *shared_memory;
+    *shared_memory = NULL;
+    int res = shmdt((void *)ptr);
     if (res == -1) {
         perror("detach_shared_memory: shmdt");
-        fprintf(stderr, "detach_shared_memory: error ptr: %ld PID: %d\n", (long)shared_memory, getpid());
+        fprintf(stderr, "detach_shared_memory: error ptr: %ld PID: %d\n", (long)ptr, getpid());
         fflush(stderr);
     }
     return res;

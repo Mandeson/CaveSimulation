@@ -29,7 +29,7 @@ GuideRes guide_init(Guide *guide) {
     int message_queue = get_message_queue(MESSAGE_QUEUE_ID);
     if (message_queue == -1) {
         if (shared_memory != NULL)
-            detach_shared_memory(shared_memory);
+            detach_shared_memory(&shared_memory);
         return GUIDE_INIT_FAIL;
     }
     guide->message_queue = message_queue;
@@ -37,7 +37,7 @@ GuideRes guide_init(Guide *guide) {
     int semaphores = get_semaphores();
     if (semaphores == -1) {
         if (shared_memory != NULL)
-            detach_shared_memory(shared_memory);
+            detach_shared_memory(&shared_memory);
         return GUIDE_INIT_FAIL;
     }
     guide->semaphores = semaphores;
@@ -62,7 +62,7 @@ GuideRes guide_destroy(Guide *guide) {
         array_destroy(&guide->trail_visitors);
 
     if (guide->shared_memory != NULL
-            && detach_shared_memory(guide->shared_memory) == -1)
+            && detach_shared_memory(&guide->shared_memory) == -1)
         return GUIDE_DESTROY_FAIL;
 
     return GUIDE_SUCCESS;

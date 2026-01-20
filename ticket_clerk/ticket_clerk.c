@@ -24,7 +24,7 @@ TicketClerkRes ticket_clerk_init(TicketClerk *ticket_clerk) {
     int message_queue = get_message_queue(MESSAGE_QUEUE_ID);
     if (message_queue == -1) {
         if (shared_memory != NULL)
-            detach_shared_memory(shared_memory);
+            detach_shared_memory(&shared_memory);
         return TICKET_CLERK_INIT_FAIL;
     }
     ticket_clerk->message_queue = message_queue;
@@ -32,7 +32,7 @@ TicketClerkRes ticket_clerk_init(TicketClerk *ticket_clerk) {
     int semaphores = get_semaphores();
     if (semaphores == -1) {
         if (shared_memory != NULL)
-            detach_shared_memory(shared_memory);
+            detach_shared_memory(&shared_memory);
         return TICKET_CLERK_INIT_FAIL;
     }
     ticket_clerk->semaphores = semaphores;
@@ -49,7 +49,7 @@ TicketClerkRes ticket_clerk_destroy(TicketClerk *ticket_clerk) {
     //             "Destroying ticket clerk (PID: %d)", getpid());
 
     if (ticket_clerk->shared_memory != NULL
-            && detach_shared_memory(ticket_clerk->shared_memory) == -1)
+            && detach_shared_memory(&ticket_clerk->shared_memory) == -1)
         return TICKET_CLERK_DESTROY_FAIL;
 
     return TICKET_CLERK_SUCCESS;

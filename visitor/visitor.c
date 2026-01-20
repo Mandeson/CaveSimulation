@@ -41,7 +41,7 @@ VisitorRes visitor_init(Visitor *visitor) {
     int message_queue = get_message_queue(MESSAGE_QUEUE_ID);
     if (message_queue == -1) {
         if (shared_memory != NULL)
-            detach_shared_memory(shared_memory);
+            detach_shared_memory(&shared_memory);
         return VISITOR_INIT_FAIL;
     }
     visitor->message_queue = message_queue;
@@ -49,7 +49,7 @@ VisitorRes visitor_init(Visitor *visitor) {
     int semaphores = get_semaphores();
     if (semaphores == -1) {
         if (shared_memory != NULL)
-            detach_shared_memory(shared_memory);
+            detach_shared_memory(&shared_memory);
         return VISITOR_INIT_FAIL;
     }
     visitor->semaphores = semaphores;
@@ -68,7 +68,7 @@ VisitorRes visitor_destroy(Visitor *visitor) {
     // if (visitor->logger_initialized)
     //     logger_log(&visitor->logger, "Destroying");
 
-    if (visitor->shared_memory != NULL && detach_shared_memory(visitor->shared_memory) == -1)
+    if (visitor->shared_memory != NULL && detach_shared_memory(&visitor->shared_memory) == -1)
         return VISITOR_DESTROY_FAIL;
 
     return VISITOR_SUCCESS;
