@@ -1,7 +1,10 @@
 #include "guide.h"
+#include <asm-generic/errno-base.h>
+#include <errno.h>
 #include <linux/limits.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -12,6 +15,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include "common.h"
+#include "logger_interface.h"
 #include "util/array.h"
 
 GuideRes guide_init(Guide *guide) {
@@ -78,24 +82,52 @@ static int receive_message(Guide *guide) {
     return 0;
 }
 
-void guide_tour(Guide *guide) {
+static void collect_visitors(Guide *guide) {
+    size_t person_space = PIPE_BUF / guide->shared_memory->K;
+    void *buffer = malloc(person_space);
+
+    size_t visitors_collected = 0;
+    while (visitors_collected < guide->trail_visitors.size) {//TOCHANGHE TO trail_visitors_count
+        //usleep(1000);
+
+        int catwalk_visitors[2] = {guide->shared_memory->catwalk_visitors[0],
+                guide->shared_memory->catwalk_visitors[1]};
+        if (catwalk_visitors[0] != 0 || catwalk_visitors[1] != 0) {
+            logger_log(&guide->logger, "%d collecting a visitor", guide->number + 1);
+
+            int catwalk_number = (catwalk_visitors[1] > catwalk_visitors[0]) ? 1 : 0;
+
+            while (read(guide->shared_memory->catwalk_pipe[catwalk_number][0], buffer,
+                    person_space) == -1) {
+                if (errno != EINTR)
+                    perror("guide_tour: read (pipe)");
+            }
+
+            guide->shared_memory->catwalk_visitors[catwalk_number]--; // TOCHANGE
+            visitors_collected++;
+
+            logger_log(&guide->logger, "%d collected a visitor", guide->number + 1);
+        }
+    }
+
+    free(buffer);
+}
+
+static void guide_tour(Guide *guide) {
     logger_log(&guide->logger,
             "Guide of trail %d is starting the tour with %d visitors", guide->number + 1,
             guide->trail_visitors_count);
 
-    // take_semaphore(guide->semaphores, CATWALK_SEMAPHORE);
+    take_semaphore(guide->semaphores, CATWALK_SEMAPHORE);
 
-    // for (size_t i = 0; i < guide->trail_visitors.size; i++) {
-    //     int visitor_pid = ((int *)guide->trail_visitors.ptr)[i];
-    //     message_queue_send(guide->message_queue, visitor_pid, NULL, 0, "guide_tour");
-    // }
+    for (size_t i = 0; i < guide->trail_visitors.size; i++) {
+        int visitor_pid = ((int *)guide->trail_visitors.ptr)[i];
+        message_queue_send(guide->message_queue, visitor_pid, NULL, 0, "guide_tour");
+    }
 
-    // size_t person_space = PIPE_BUF / guide->shared_memory->K;
-    // void *buffer = malloc(person_space);
+    collect_visitors(guide);
 
-    // give_semaphore(guide->semaphores, CATWALK_SEMAPHORE);
-
-    // free(buffer);
+    give_semaphore(guide->semaphores, CATWALK_SEMAPHORE);
 
     logger_log(&guide->logger,
             "Guide of trail %d is ending the tour", guide->number + 1);
@@ -157,7 +189,7 @@ GuideRes guide_run(Guide *guide) {
         }
 
         int sleep_time = 1;
-        // usleep(sleep_time * 1000);
+        while (usleep(sleep_time * 1000) == -1) {}
         timeout_counter += sleep_time;
 
         int res;

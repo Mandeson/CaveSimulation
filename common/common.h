@@ -50,6 +50,7 @@ typedef struct {
     int guide2_pid;
 
     int catwalk_pipe[2][2];
+    volatile atomic_int catwalk_visitors[2];
 
     volatile bool terminating;
     volatile atomic_bool interrupted;
