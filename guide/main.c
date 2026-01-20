@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 Guide guide;
+volatile bool guide_destroying = false;
 
 void sigusr1_handler(int);
 void sigusr2_handler(int);
@@ -18,6 +19,8 @@ int main(void) {
 
     res = guide_run(&guide);
 
+    guide_destroying = true;
+
     GuideRes destroy_res = guide_destroy(&guide);
 
     if (res != GUIDE_SUCCESS)
@@ -30,6 +33,8 @@ int main(void) {
 void sigusr1_handler(int sig) {
     (void)sig;
 
+    if (guide_destroying)
+        exit(0);
     GuideRes destroy_res = guide_destroy(&guide);
     exit(destroy_res);
 }
