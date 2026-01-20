@@ -12,6 +12,8 @@ int main(void) {
     signal(SIGINT, SIG_IGN);
 
     shared_memory = attach_shared_memory();
+    if (shared_memory == NULL)
+        return -1;
 
     while (1) {
         char c;
@@ -23,7 +25,8 @@ int main(void) {
         }
     }
 
-    detach_shared_memory(shared_memory);
+    if (shared_memory != NULL)
+        detach_shared_memory(shared_memory);
 }
 
 void sigusr1_handler(int sig) {

@@ -28,14 +28,16 @@ GuideRes guide_init(Guide *guide) {
     
     int message_queue = get_message_queue(MESSAGE_QUEUE_ID);
     if (message_queue == -1) {
-        detach_shared_memory(shared_memory);
+        if (shared_memory != NULL)
+            detach_shared_memory(shared_memory);
         return GUIDE_INIT_FAIL;
     }
     guide->message_queue = message_queue;
 
     int semaphores = get_semaphores();
     if (semaphores == -1) {
-        detach_shared_memory(shared_memory);
+        if (shared_memory != NULL)
+            detach_shared_memory(shared_memory);
         return GUIDE_INIT_FAIL;
     }
     guide->semaphores = semaphores;

@@ -23,14 +23,16 @@ TicketClerkRes ticket_clerk_init(TicketClerk *ticket_clerk) {
 
     int message_queue = get_message_queue(MESSAGE_QUEUE_ID);
     if (message_queue == -1) {
-        detach_shared_memory(shared_memory);
+        if (shared_memory != NULL)
+            detach_shared_memory(shared_memory);
         return TICKET_CLERK_INIT_FAIL;
     }
     ticket_clerk->message_queue = message_queue;
 
     int semaphores = get_semaphores();
     if (semaphores == -1) {
-        detach_shared_memory(shared_memory);
+        if (shared_memory != NULL)
+            detach_shared_memory(shared_memory);
         return TICKET_CLERK_INIT_FAIL;
     }
     ticket_clerk->semaphores = semaphores;
