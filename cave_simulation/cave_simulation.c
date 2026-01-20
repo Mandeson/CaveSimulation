@@ -81,9 +81,8 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log
     if (shared_memory == -1)
         return CAVE_SIMULATION_INIT_FAIL;
     cave_simulation->shared_memory_id = shared_memory;
+    cave_simulation->shared_memory_created = true;
     init_shared_memory(cave_simulation->shared_memory);
-
-    clock_init(&cave_simulation->clock, cave_simulation->shared_memory);
 
     if (logger_init(&cave_simulation->logger, log_to_stdout) == -1)
         return CAVE_SIMULATION_INIT_FAIL;
@@ -92,12 +91,14 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log
             cave_simulation->shared_memory);
 
     if (!skip_start_confirmation) {
-        printf("Press enter to start simulation ");
+        printf("Press enter to start the simulation ");
         fflush(stdout);
 
         char c;
         read(0, &c, 1);
     }
+
+    clock_init(&cave_simulation->clock, cave_simulation->shared_memory);
 
     logger_log(&cave_simulation->logger_interface, "Initializing cave simulation");
 
@@ -107,6 +108,7 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log
         return CAVE_SIMULATION_INIT_FAIL;
     }
     cave_simulation->message_queue = message_queue;
+    cave_simulation->message_queue_created = true;
 
     int semaphores = create_semaphores();
     if (semaphores == -1) {
@@ -115,6 +117,7 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log
         return CAVE_SIMULATION_INIT_FAIL;
     }
     cave_simulation->semaphores = semaphores;
+    cave_simulation->semaphores_created = true;
     if (init_semaphores(semaphores) == -1) {
         destroy_semaphores(semaphores);
         destroy_message_queue(message_queue);
@@ -157,67 +160,74 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
 
     logger_log(&cave_simulation->logger_interface, "Destroying cave simulation");
 
-    if (!cave_simulation->shared_memory->interrupted && !cave_simulation->disable_guard)
-        kill(cave_simulation->guard_pid, SIGUSR1);
-
     bool error = false;
 
-    // If the simulation wasn't interrupted, wait only for visitors
-    int leave_processes = 0;
-    if (!cave_simulation->shared_memory->interrupted)
-        leave_processes += GUIDE_COUNT + 1; // guides + ticket clerk
-    logger_log(&cave_simulation->logger_interface, "Waiting for visitors to finish");
-    while (cave_simulation->child_processes - cave_simulation->child_processes_finished
-            > leave_processes) {
-        usleep(10000);
-        logger_log(&cave_simulation->logger_interface, "Processes: %d Finished: %d", cave_simulation->child_processes,
-                cave_simulation->child_processes_finished);
+    if (cave_simulation->simulation_running) {
+        if (!cave_simulation->shared_memory->interrupted && !cave_simulation->disable_guard
+                && cave_simulation->guard_pid != 0)
+            kill(cave_simulation->guard_pid, SIGUSR1);
+
+        // If the simulation wasn't interrupted, wait only for visitors
+        int leave_processes = 0;
+        if (!cave_simulation->shared_memory->interrupted)
+            leave_processes += GUIDE_COUNT + 1; // guides + ticket clerk
+        logger_log(&cave_simulation->logger_interface, "Waiting for visitors to finish");
+        while (cave_simulation->child_processes - cave_simulation->child_processes_finished
+                > leave_processes) {
+            usleep(10000);
+            logger_log(&cave_simulation->logger_interface, "Processes: %d Finished: %d", cave_simulation->child_processes,
+                    cave_simulation->child_processes_finished);
+        }
+
+        logger_log(&cave_simulation->logger_interface, "Finished destroying visitors");
+
+        const char *message = "terminate";
+        size_t len = strlen(message);
+
+        if (message_queue_send(cave_simulation->message_queue,
+                cave_simulation->shared_memory->ticket_clerk_pid, message, len,
+                "cave_simulation_destroy terminate (TicketClerk)") == MESSAGE_QUEUE_SEND_FAIL)
+            error = true;
+
+        if (message_queue_send(cave_simulation->message_queue,
+                cave_simulation->shared_memory->guide1_pid, message, len,
+                "cave_simulation_destroy terminate (Guide1)") == MESSAGE_QUEUE_SEND_FAIL)
+            error = true;
+
+        if (message_queue_send(cave_simulation->message_queue,
+                cave_simulation->shared_memory->guide2_pid, message, len,
+                "cave_simulation_destroy terminate (Guide2)") == MESSAGE_QUEUE_SEND_FAIL)
+            error = true;
+
+        // Wait for ticket clerk and guides (if not interrupted)
+        while (cave_simulation->child_processes > cave_simulation->child_processes_finished) {
+            usleep(1000);
+        }
+        logger_log(&cave_simulation->logger_interface, "Total number of processes run: %d",
+                cave_simulation->child_processes);
+        pthread_cancel(cave_simulation->child_wait_thread);
+
+        close_catwalk_pipe_input(cave_simulation->shared_memory);
+        close_catwalk_pipe_output(cave_simulation->shared_memory);
+
+        clock_destroy(&cave_simulation->clock);
     }
-
-    logger_log(&cave_simulation->logger_interface, "Finished destroying visitors");
-
-    const char *message = "terminate";
-    size_t len = strlen(message);
-
-    if (message_queue_send(cave_simulation->message_queue,
-            cave_simulation->shared_memory->ticket_clerk_pid, message, len,
-            "cave_simulation_destroy terminate (TicketClerk)") == MESSAGE_QUEUE_SEND_FAIL)
-        error = true;
-
-    if (message_queue_send(cave_simulation->message_queue,
-            cave_simulation->shared_memory->guide1_pid, message, len,
-            "cave_simulation_destroy terminate (Guide1)") == MESSAGE_QUEUE_SEND_FAIL)
-        error = true;
-
-    if (message_queue_send(cave_simulation->message_queue,
-            cave_simulation->shared_memory->guide2_pid, message, len,
-            "cave_simulation_destroy terminate (Guide2)") == MESSAGE_QUEUE_SEND_FAIL)
-        error = true;
-
-    // Wait for ticket clerk and guides (if not interrupted)
-    while (cave_simulation->child_processes > cave_simulation->child_processes_finished) {
-        usleep(1000);
-    }
-    logger_log(&cave_simulation->logger_interface, "Total number of processes run: %d",
-            cave_simulation->child_processes);
-    pthread_cancel(cave_simulation->child_wait_thread);
-
-    close_catwalk_pipe_input(cave_simulation->shared_memory);
-    close_catwalk_pipe_output(cave_simulation->shared_memory);
 
     logger_log(&cave_simulation->logger_interface,
             "Destroying cave simulation (PID: %d)", getpid());
     
-    if (destroy_semaphores(cave_simulation->semaphores) == -1)
+    if (cave_simulation->semaphores_created
+            && destroy_semaphores(cave_simulation->semaphores) == -1)
         error = true;
 
-    if (destroy_message_queue(cave_simulation->message_queue) == -1)
+    if (cave_simulation->message_queue_created
+            && destroy_message_queue(cave_simulation->message_queue) == -1)
         error = true;
 
     logger_destroy(&cave_simulation->logger);
-    clock_destroy(&cave_simulation->clock);
 
-    if (destroy_shared_memory(&cave_simulation->shared_memory,
+    if (cave_simulation->shared_memory_created
+        && destroy_shared_memory(&cave_simulation->shared_memory,
             cave_simulation->shared_memory_id) == -1) {
         error = true;
     }
@@ -261,6 +271,8 @@ static void *child_wait_thread_function(void *arg) {
 CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {    
     logger_log(&cave_simulation->logger_interface,
             "Running cave simulation (PID: %d)", getpid());
+
+    cave_simulation->simulation_running = true;
 
     setpgid(0, 0);
     signal(SIGUSR1, SIG_IGN);
@@ -316,6 +328,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
             }
         }
         cave_simulation->guard_pid = fork_res;
+        logger_log(&cave_simulation->logger_interface, "Guard started (PID: %d)", fork_res);
         cave_simulation->child_processes++;
     }
 
@@ -363,7 +376,14 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
 
 void cave_simulation_terminate(CaveSimulation *cave_simulation) {
     cave_simulation->shared_memory->interrupted = true;
+
     logger_log(&cave_simulation->logger_interface, "Interrupted");
+
+    if (!cave_simulation->simulation_running) {
+        cave_simulation_destroy(cave_simulation);
+        exit(0);
+    }
+
     signal(SIGUSR1, SIG_IGN);
     kill(0, SIGUSR1);
 }

@@ -12,10 +12,18 @@
 #define MAX_PROCESSES 500
 
 typedef struct {
+    bool simulation_running;
+
     bool disable_guard;
+
+    bool shared_memory_created;
+    bool message_queue_created;
+    bool semaphores_created;
+
     int shared_memory_id;
     int message_queue;
     int semaphores;
+
     int guard_pid;
 
     Clock clock;
