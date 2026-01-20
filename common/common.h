@@ -52,7 +52,7 @@ typedef struct {
     int catwalk_pipe[2][2];
     volatile atomic_int catwalk_visitors[2];
 
-    volatile bool terminating;
+    volatile atomic_bool terminating;
     volatile atomic_bool interrupted;
 
     volatile VisitorWaiting visitors_waiting[GUIDE_COUNT][VISITORS_WAITING_SIZE];

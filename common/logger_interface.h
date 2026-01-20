@@ -3,7 +3,7 @@
 #include "common.h"
 typedef struct {
     int logger_message_queue;
-    char tag[16];
+    char tag[25];
     const SharedMemory *shared_memory;
 } LoggerInterface;
 

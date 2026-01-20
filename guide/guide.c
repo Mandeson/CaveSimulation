@@ -1,5 +1,4 @@
 #include "guide.h"
-#include <asm-generic/errno-base.h>
 #include <errno.h>
 #include <linux/limits.h>
 #include <stdbool.h>
@@ -45,7 +44,9 @@ GuideRes guide_init(Guide *guide) {
     guide->number = (getpid() == guide->shared_memory->guide2_pid) ? 1 : 0;
     give_semaphore(guide->semaphores, SHARED_MEMORY_SEMAPHORE);
 
-    logger_interface_new(&guide->logger, "Guide", shared_memory);
+    char logger_tag[] = "Guide n";
+    logger_tag[6] = '1' + guide->number;
+    logger_interface_new(&guide->logger, logger_tag, shared_memory);
 
     return GUIDE_SUCCESS;
 }
@@ -55,11 +56,12 @@ GuideRes guide_destroy(Guide *guide) {
         logger_log(&guide->logger,
                 "Guide (PID: %d) destroying", getpid());
 
-    if (detach_shared_memory(guide->shared_memory) == -1)
-        return GUIDE_DESTROY_FAIL;
-
     if (guide->trail_visitors_initialized)
         array_destroy(&guide->trail_visitors);
+
+    if (guide->shared_memory != NULL
+            && detach_shared_memory(guide->shared_memory) == -1)
+        return GUIDE_DESTROY_FAIL;
 
     return GUIDE_SUCCESS;
 }
@@ -93,7 +95,7 @@ static void collect_visitors(Guide *guide) {
         int catwalk_visitors[2] = {guide->shared_memory->catwalk_visitors[0],
                 guide->shared_memory->catwalk_visitors[1]};
         if (catwalk_visitors[0] != 0 || catwalk_visitors[1] != 0) {
-            logger_log(&guide->logger, "%d collecting a visitor", guide->number + 1);
+            logger_log(&guide->logger, "Collecting a visitor");
 
             int catwalk_number = (catwalk_visitors[1] > catwalk_visitors[0]) ? 1 : 0;
 
@@ -106,7 +108,7 @@ static void collect_visitors(Guide *guide) {
             guide->shared_memory->catwalk_visitors[catwalk_number]--; // TOCHANGE
             visitors_collected++;
 
-            logger_log(&guide->logger, "%d collected a visitor", guide->number + 1);
+            logger_log(&guide->logger, "Collected a visitor");
         }
     }
 
@@ -115,7 +117,7 @@ static void collect_visitors(Guide *guide) {
 
 static void guide_tour(Guide *guide) {
     logger_log(&guide->logger,
-            "Guide of trail %d is starting the tour with %d visitors", guide->number + 1,
+            "Starting the tour with %d visitors", guide->number + 1,
             guide->trail_visitors_count);
 
     take_semaphore(guide->semaphores, CATWALK_SEMAPHORE);
@@ -129,8 +131,7 @@ static void guide_tour(Guide *guide) {
 
     give_semaphore(guide->semaphores, CATWALK_SEMAPHORE);
 
-    logger_log(&guide->logger,
-            "Guide of trail %d is ending the tour", guide->number + 1);
+    logger_log(&guide->logger, "Ending the tour");
 
     array_clear(&guide->trail_visitors);
     guide->trail_visitors_count = 0;
@@ -174,8 +175,7 @@ bool greet_visitors(Guide *guide) {
 
 GuideRes guide_run(Guide *guide) {
     pid_t pid = getpid();
-    logger_log(&guide->logger,
-            "Running guide (PID: %d, guide nr: %d)", pid, guide->number + 1);
+    logger_log(&guide->logger, "Running guide (PID: %d)", pid);
     guide->logger_initialized = true;
 
     guide->waiting_by_guide_semaphore = (guide->number == 1) ? WAITING_BY_GUIDE2_SEMAPHORE

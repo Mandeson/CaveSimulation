@@ -29,7 +29,8 @@ int main(void) {
 void sigusr1_handler(int sig) {
     (void)sig;
 
-    detach_shared_memory(shared_memory);
+    if (shared_memory != NULL)
+        detach_shared_memory(shared_memory);
 
     exit(0);
 }

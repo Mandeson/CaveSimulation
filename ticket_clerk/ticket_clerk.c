@@ -36,15 +36,18 @@ TicketClerkRes ticket_clerk_init(TicketClerk *ticket_clerk) {
     ticket_clerk->semaphores = semaphores;
 
     logger_interface_new(&ticket_clerk->logger, "TicketClerk", shared_memory);
+    ticket_clerk->logger_initialized = true;
 
     return TICKET_CLERK_SUCCESS;
 }
 
 TicketClerkRes ticket_clerk_destroy(TicketClerk *ticket_clerk) {
-    logger_log(&ticket_clerk->logger,
-            "Destroying ticket clerk (PID: %d)", getpid());
+    if (ticket_clerk->logger_initialized)
+        logger_log(&ticket_clerk->logger,
+                "Destroying ticket clerk (PID: %d)", getpid());
 
-    if (detach_shared_memory(ticket_clerk->shared_memory) == -1)
+    if (ticket_clerk->shared_memory != NULL
+            && detach_shared_memory(ticket_clerk->shared_memory) == -1)
         return TICKET_CLERK_DESTROY_FAIL;
 
     return TICKET_CLERK_SUCCESS;
@@ -145,7 +148,7 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
                     VisitorMessage visitor_message;
                     memcpy(&visitor_message, message.mtext, sizeof(visitor_message));
                     logger_log(&ticket_clerk->logger,
-                            "TicketClerk received ticket request from PID: %d, age: %d, "
+                            "Received ticket request from PID: %d, age: %d, "
                             "children: %d and sends the ticket",
                             visitor_message.pid, visitor_message.visitor_info.age,
                             visitor_message.visitor_info.children_count);

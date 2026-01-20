@@ -12,7 +12,9 @@ typedef struct {
     SharedMemory *shared_memory;
     int message_queue;
     int semaphores;
+
     LoggerInterface logger;
+    volatile bool logger_initialized;
 } TicketClerk;
 
 typedef enum {

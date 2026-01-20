@@ -153,25 +153,25 @@ static void close_catwalk_pipe_output(const SharedMemory *shared_memory) {
 }
 
 CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
-    take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
     cave_simulation->shared_memory->terminating = true;
-    give_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
 
     logger_log(&cave_simulation->logger_interface, "Destroying cave simulation");
 
-    if (!cave_simulation->disable_guard)
+    if (!cave_simulation->shared_memory->interrupted && !cave_simulation->disable_guard)
         kill(cave_simulation->guard_pid, SIGUSR1);
 
     bool error = false;
 
-    // Wait only for visitors (not ticket clerk, guides only if interrupted)
-    int leave_processes = 1; // Ticket clerk
+    // If the simulation wasn't interrupted, wait only for visitors
+    int leave_processes = 0;
     if (!cave_simulation->shared_memory->interrupted)
-        leave_processes += GUIDE_COUNT;
+        leave_processes += GUIDE_COUNT + 1; // guides + ticket clerk
     logger_log(&cave_simulation->logger_interface, "Waiting for visitors to finish");
     while (cave_simulation->child_processes - cave_simulation->child_processes_finished
             > leave_processes) {
-        usleep(1000);
+        usleep(10000);
+        logger_log(&cave_simulation->logger_interface, "Processes: %d Finished: %d", cave_simulation->child_processes,
+                cave_simulation->child_processes_finished);
     }
 
     logger_log(&cave_simulation->logger_interface, "Finished destroying visitors");
@@ -249,8 +249,11 @@ static int spawn_guide(CaveSimulation *cave_simulation) {
 static void *child_wait_thread_function(void *arg) {
     CaveSimulation *cave_simulation = (CaveSimulation *)arg;
     while (true) {
-        if (wait(NULL) != -1)
+        int res = wait(NULL);
+        if (res != -1) {
             cave_simulation->child_processes_finished++;
+            logger_log(&cave_simulation->logger_interface, "Child process %d finished", res);
+        }
     }
     return NULL;
 }
@@ -258,6 +261,9 @@ static void *child_wait_thread_function(void *arg) {
 CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {    
     logger_log(&cave_simulation->logger_interface,
             "Running cave simulation (PID: %d)", getpid());
+
+    setpgid(0, 0);
+    signal(SIGUSR1, SIG_IGN);
 
     int fork_res = fork();
     if (fork_res == -1) {
@@ -277,9 +283,6 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     }
     cave_simulation->child_processes++;
     cave_simulation->shared_memory->ticket_clerk_pid = fork_res;
-
-    setpgid(0, 0);
-    signal(SIGUSR1, SIG_IGN);
 
     pthread_create(&cave_simulation->child_wait_thread, NULL, child_wait_thread_function, cave_simulation);
 
@@ -318,6 +321,8 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
 
     int total_simulation_time = (cave_simulation->shared_memory->Tk - cave_simulation->shared_memory->Tp) * 3600;
 
+    int last_time = cave_simulation->shared_memory->time;
+
     do {
         if (cave_simulation->child_processes - cave_simulation->child_processes_finished + 1
                 < MAX_PROCESSES) {
@@ -339,16 +344,26 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
             cave_simulation->child_processes++;
         }
 
+        if (cave_simulation->shared_memory->time - last_time > 1000) {
+            last_time = cave_simulation->shared_memory->time;
+            printf("Heartbeat\n");
+            fflush(stdout);
+            logger_log(&cave_simulation->logger_interface, "Heartbeat");
+        }
+
         uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 1000);
         //usleep(wait_time);
     } while (!cave_simulation->shared_memory->interrupted && cave_simulation->shared_memory->time
         < total_simulation_time);
+
+    logger_log(&cave_simulation->logger_interface, "Simulation ended");
 
     return CAVE_SIMULATION_SUCCESS;
 }
 
 void cave_simulation_terminate(CaveSimulation *cave_simulation) {
     cave_simulation->shared_memory->interrupted = true;
+    logger_log(&cave_simulation->logger_interface, "Interrupted");
     signal(SIGUSR1, SIG_IGN);
     kill(0, SIGUSR1);
 }

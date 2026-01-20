@@ -17,7 +17,7 @@ void logger_interface_new(LoggerInterface *logger, const char *tag, const Shared
 void logger_log(const LoggerInterface *logger, const char *format, ...) {
     va_list arg;
     LogMessage message;
-    char string[226];
+    char string[220];
 
     va_start(arg, format);
     vsnprintf(string, sizeof(string), format, arg);

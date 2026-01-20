@@ -52,7 +52,9 @@ VisitorRes visitor_init(Visitor *visitor) {
     }
     visitor->semaphores = semaphores;
 
-    logger_interface_new(&visitor->logger, "Visitor", shared_memory);
+    char logger_tag[25];
+    snprintf(logger_tag, sizeof(logger_tag), "Visitor (PID %d)", getpid());
+    logger_interface_new(&visitor->logger, logger_tag, shared_memory);
 
     if (visitor->shared_memory->interrupted)
         return VISITOR_INIT_FAIL;
@@ -62,8 +64,7 @@ VisitorRes visitor_init(Visitor *visitor) {
 
 VisitorRes visitor_destroy(Visitor *visitor) {
     if (visitor->logger_initialized)
-        logger_log(&visitor->logger,
-                "(PID: %d) destroying", getpid());
+        logger_log(&visitor->logger, "Destroying");
 
     if (visitor->shared_memory != NULL && detach_shared_memory(visitor->shared_memory) == -1)
         return VISITOR_DESTROY_FAIL;
@@ -73,8 +74,7 @@ VisitorRes visitor_destroy(Visitor *visitor) {
 
 VisitorRes visitor_run(Visitor *visitor) {
     pid_t pid = getpid();
-    logger_log(&visitor->logger,
-            "Running visitor (PID: %d)", pid);
+    logger_log(&visitor->logger, "Running visitor");
     visitor->logger_initialized = true;
 
     take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
@@ -83,8 +83,7 @@ VisitorRes visitor_run(Visitor *visitor) {
 
     take_semaphore(visitor->semaphores, TICKET_REGULAR_SEMAPHORE);
 
-    logger_log(&visitor->logger,
-            "%d enters the ticket office and requests ticket", pid);
+    logger_log(&visitor->logger, "Entering the ticket office and requesting ticket");
 
     // Request ticket from TicketClerk
     VisitorMessage visitor_message;
@@ -102,8 +101,7 @@ VisitorRes visitor_run(Visitor *visitor) {
         return VISITOR_RUN_FAIL;
 
     if (strcmp(message.mtext, "no-tickets") == 0) {
-        logger_log(&visitor->logger,
-                "(PID: %d) received no tickets", pid);
+        logger_log(&visitor->logger, "Received no tickets");
         return VISITOR_RUN_FAIL;
     }
 
@@ -111,23 +109,21 @@ VisitorRes visitor_run(Visitor *visitor) {
     memcpy(&ticket_message, message.mtext, sizeof(TicketMessage));
 
     logger_log(&visitor->logger,
-            "(PID: %d) has received the ticket for trail %d and pays %d golden coins",
-            pid, ticket_message.trail_nr + 1, ticket_message.cost);
+            "Received the ticket for trail %d and pays %d golden coins",
+            ticket_message.trail_nr + 1, ticket_message.cost);
 
     // Wait for the tour to start
     if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run", true)
             != MESSAGE_QUEUE_RECEIVE_SUCCESS)
         return VISITOR_RUN_FAIL;
 
-    logger_log(&visitor->logger,
-            "(PID: %d) started the tour", pid);
+    logger_log(&visitor->logger, "Started the tour");
     
     int catwalk_number = (visitor->shared_memory->catwalk_visitors[1]
             < visitor->shared_memory->catwalk_visitors[0]) ? 1 : 0;
     visitor->shared_memory->catwalk_visitors[catwalk_number]++; // TOCHANGE
 
-    logger_log(&visitor->logger,
-            "(PID: %d) Entering the catwalk %d", pid, catwalk_number + 1);
+    logger_log(&visitor->logger, "Entering the catwalk %d", catwalk_number + 1);
 
     size_t person_space = PIPE_BUF / visitor->shared_memory->K;
     void *buffer = malloc(person_space);
@@ -145,8 +141,7 @@ VisitorRes visitor_run(Visitor *visitor) {
 
     free(buffer);
 
-    logger_log(&visitor->logger,
-            "(PID: %d) finished the tour", pid);
+    logger_log(&visitor->logger, "Finished the tour");
 
     return VISITOR_SUCCESS;
 }
