@@ -135,7 +135,7 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
 
     bool terminate = false;
     do {
-        //usleep(TICKET_CLERK_DELAY * 1000);
+        usleep(TICKET_CLERK_DELAY * 1000);
         
         int res;
         do {

@@ -87,18 +87,20 @@ static int receive_message(Guide *guide) {
     return 0;
 }
 
-static void collect_visitors(Guide *guide) {
+static void lead_visitors_through_catwalk(Guide *guide) {
+    usleep(guide->shared_memory->K * 1000);
+
     size_t person_space = PIPE_BUF / guide->shared_memory->K;
     void *buffer = malloc(person_space);
 
-    size_t visitors_collected = 0;
-    while (visitors_collected < guide->trail_visitors.size) {//TOCHANGHE TO trail_visitors_count
-        //usleep(1000);
+    int visitors_collected = 0;
+    while (visitors_collected < guide->trail_visitors_count) {//TOCHANGHE TO trail_visitors_count
+        usleep(1000);
 
         int catwalk_visitors[2] = {guide->shared_memory->catwalk_visitors[0],
                 guide->shared_memory->catwalk_visitors[1]};
         if (catwalk_visitors[0] != 0 || catwalk_visitors[1] != 0) {
-            logger_log(&guide->logger, "Collecting a visitor");
+            logger_log(&guide->logger, "Collecting a visitor from catwalk");
 
             int catwalk_number = (catwalk_visitors[1] > catwalk_visitors[0]) ? 1 : 0;
 
@@ -108,10 +110,10 @@ static void collect_visitors(Guide *guide) {
                     perror("guide_tour: read (pipe)");
             }
 
-            guide->shared_memory->catwalk_visitors[catwalk_number]--; // TOCHANGE
+            guide->shared_memory->catwalk_visitors[catwalk_number]--;
             visitors_collected++;
 
-            logger_log(&guide->logger, "Collected a visitor");
+            logger_log(&guide->logger, "Collected a visitor from catwalk");
         }
     }
 
@@ -121,27 +123,61 @@ static void collect_visitors(Guide *guide) {
 static void guide_tour(Guide *guide) {
     guide->tour_cancelled = false;
 
-    logger_log(&guide->logger,
-            "Starting the tour with %d visitors", guide->number + 1,
-            guide->trail_visitors_count);
-
     take_semaphore(guide->semaphores, CATWALK_SEMAPHORE);
+
+    logger_log(&guide->logger,
+            "Leading %d visitors into the cave", guide->trail_visitors_count);
 
     for (size_t i = 0; i < guide->trail_visitors.size; i++) {
         int visitor_pid = ((int *)guide->trail_visitors.ptr)[i];
-        message_queue_send(guide->message_queue, visitor_pid, NULL, 0, "guide_tour");
+        message_queue_send(guide->message_queue, visitor_pid, NULL, 0, "guide_tour - catwalk");
     }
 
-    collect_visitors(guide);
+    // Lead the visitors into the cave
+    lead_visitors_through_catwalk(guide);
+
+    if (!guide->tour_cancelled) {
+        logger_log(&guide->logger, "Starting the tour");
+
+        // Inform the visitors that the tour is starting
+        for (size_t i = 0; i < guide->trail_visitors.size; i++) {
+            int visitor_pid = ((int *)guide->trail_visitors.ptr)[i];
+            message_queue_send(guide->message_queue, visitor_pid, NULL, 0, "guide_tour - tour");
+        }
+
+        // Lead the tour
+        usleep(guide->shared_memory->T[guide->number] * 60 * 1000);
+
+        logger_log(&guide->logger, "Ending the tour");
+    } else {
+        logger_log(&guide->logger, "Cancelling the tour");
+
+        const char *message = "tour-cancelled";
+
+        for (size_t i = 0; i < guide->trail_visitors.size; i++) {
+            int visitor_pid = ((int *)guide->trail_visitors.ptr)[i];
+            message_queue_send(guide->message_queue, visitor_pid, message,
+                    strlen(message) + 1, "guide_tour - tour cancel");
+        }
+    }
+
+    logger_log(&guide->logger, "Leading the visitors out of the cave");
+
+    // Lead the visitors out of the cave
+    lead_visitors_through_catwalk(guide);
+
+    for (size_t i = 0; i < guide->trail_visitors.size; i++) {
+        int visitor_pid = ((int *)guide->trail_visitors.ptr)[i];
+        message_queue_send(guide->message_queue, visitor_pid, NULL,
+                0, "guide_tour - catwalk (out)");
+    }
+
+    logger_log(&guide->logger, "Gathering new visitors");
 
     give_semaphore(guide->semaphores, CATWALK_SEMAPHORE);
 
-    logger_log(&guide->logger, "Ending the tour");
-
     array_clear(&guide->trail_visitors);
     guide->trail_visitors_count = 0;
-
-    guide->tour_cancelled = false;
 }
 
 // Returns true if there are enough visitors to start the tour
@@ -159,7 +195,8 @@ bool greet_visitors(Guide *guide) {
                 guide->trail_visitors_count += 1 + visitor_waiting->children_count;
                 int *pid = array_add_empty(&guide->trail_visitors);
                 *pid = visitor_waiting->pid;
-                logger_log(&guide->logger, "%d greets visitor %d", guide->number + 1, *pid);
+                logger_log(&guide->logger, "Greeting visitor %d (children count: %d). "
+                        "Visitors greeted: %d", *pid, visitor_waiting->children_count, guide->trail_visitors_count);
 
                 visitor_waiting->pid = 0;
             } else {

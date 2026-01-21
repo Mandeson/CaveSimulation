@@ -10,7 +10,7 @@ static void *clock_thread(void *arg) {
     gettimeofday(&last_time, NULL);
 
     while (!clock->terminate) {
-        //usleep(1000);
+        usleep(1000);
         struct timeval time;
         gettimeofday(&time, NULL);
 

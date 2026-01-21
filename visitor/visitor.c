@@ -74,6 +74,40 @@ VisitorRes visitor_destroy(Visitor *visitor) {
     return VISITOR_SUCCESS;
 }
 
+static int move_through_catwalk(Visitor *visitor) {
+    int catwalk_number = (visitor->shared_memory->catwalk_visitors[1]
+            < visitor->shared_memory->catwalk_visitors[0]) ? 1 : 0;
+    visitor->shared_memory->catwalk_visitors[catwalk_number]
+            += 1 + visitor->visitor_info.children_count;
+
+    logger_log(&visitor->logger, "Entering the catwalk %d with %d children",
+            catwalk_number + 1, visitor->visitor_info.children_count);
+
+    size_t person_space = PIPE_BUF / visitor->shared_memory->K;
+    void *buffer = malloc(person_space);
+
+    // Spend time walking through the catwalk
+    usleep(visitor->shared_memory->K * 1000);
+
+    logger_log(&visitor->logger, "Exiting the catwalk with %d children",
+            visitor->visitor_info.children_count);
+
+    for (int i = 0; i < 1 + visitor->visitor_info.children_count; i++) {
+        if (write(visitor->shared_memory->catwalk_pipe[catwalk_number][1], buffer, person_space)
+                == -1) {
+            perror("visitor_run: write (pipe)");
+            visitor->shared_memory->catwalk_visitors[catwalk_number]
+                    -= 1 + visitor->visitor_info.children_count;
+            free(buffer);
+            return -1;
+        }
+    }
+
+    free(buffer);
+
+    return 0;
+}
+
 VisitorRes visitor_run(Visitor *visitor) {
     pid_t pid = getpid();
     logger_log(&visitor->logger, "Running visitor");
@@ -98,7 +132,7 @@ VisitorRes visitor_run(Visitor *visitor) {
     Message message = {0};
 
     // Receive the ticket
-    if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run", true)
+    if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run - ticket", true)
             == MESSAGE_QUEUE_RECEIVE_FAIL)
         return VISITOR_RUN_FAIL;
 
@@ -114,36 +148,38 @@ VisitorRes visitor_run(Visitor *visitor) {
             "Received the ticket for trail %d and pays %d golden coins",
             ticket_message.trail_nr + 1, ticket_message.cost);
 
-    // Wait for the tour to start
-    if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run", true)
+    if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run - catwalk", true)
             != MESSAGE_QUEUE_RECEIVE_SUCCESS)
         return VISITOR_RUN_FAIL;
 
-    logger_log(&visitor->logger, "Started the tour");
+    logger_log(&visitor->logger, "Going into the cave");
     
-    int catwalk_number = (visitor->shared_memory->catwalk_visitors[1]
-            < visitor->shared_memory->catwalk_visitors[0]) ? 1 : 0;
-    visitor->shared_memory->catwalk_visitors[catwalk_number]++; // TOCHANGE
-
-    logger_log(&visitor->logger, "Entering the catwalk %d", catwalk_number + 1);
-
-    size_t person_space = PIPE_BUF / visitor->shared_memory->K;
-    void *buffer = malloc(person_space);
-
-    // Spend time walking through the catwalk
-    usleep(visitor->shared_memory->K * 1000);
-
-    if (write(visitor->shared_memory->catwalk_pipe[catwalk_number][1], buffer, person_space)
-            == -1) {
-        perror("visitor_run: write (pipe)");
-        visitor->shared_memory->catwalk_visitors[catwalk_number]--;
-        free(buffer);
+    if (move_through_catwalk(visitor) == -1)
         return VISITOR_RUN_FAIL;
+
+    // Wait for the guide to start the tour
+    if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run - tour", true)
+            != MESSAGE_QUEUE_RECEIVE_SUCCESS)
+        return VISITOR_RUN_FAIL;
+    
+    if (strcmp(message.mtext, "tour-cancelled") == 0) {
+        logger_log(&visitor->logger, "Tour cancelled");
+    } else {
+        logger_log(&visitor->logger, "Started the tour");
+
+        usleep(visitor->shared_memory->T[ticket_message.trail_nr] * 60 * 1000);
+
+        logger_log(&visitor->logger, "Finished the tour");
     }
 
-    free(buffer);
+    if (move_through_catwalk(visitor) == -1)
+        return VISITOR_RUN_FAIL;
 
-    logger_log(&visitor->logger, "Finished the tour");
+    if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run - catwalk (out)", true)
+            != MESSAGE_QUEUE_RECEIVE_SUCCESS)
+        return VISITOR_RUN_FAIL;
+
+    logger_log(&visitor->logger, "Left the cave");
 
     return VISITOR_SUCCESS;
 }
