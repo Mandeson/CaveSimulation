@@ -89,9 +89,6 @@ static int move_through_catwalk(Visitor *visitor) {
     // Spend time walking through the catwalk
     usleep(visitor->shared_memory->K * 1000);
 
-    logger_log(&visitor->logger, "Exiting the catwalk with %d children",
-            visitor->visitor_info.children_count);
-
     for (int i = 0; i < 1 + visitor->visitor_info.children_count; i++) {
         if (write(visitor->shared_memory->catwalk_pipe[catwalk_number][1], buffer, person_space)
                 == -1) {
@@ -102,6 +99,9 @@ static int move_through_catwalk(Visitor *visitor) {
             return -1;
         }
     }
+
+    logger_log(&visitor->logger, "Exiting the catwalk with %d children",
+            visitor->visitor_info.children_count);
 
     free(buffer);
 
