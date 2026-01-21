@@ -201,7 +201,9 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
 
         // Wait for ticket clerk and guides (if not interrupted)
         while (cave_simulation->child_processes > cave_simulation->child_processes_finished) {
-            usleep(1000);
+            usleep(10000);
+            logger_log(&cave_simulation->logger_interface, "Processes: %d Finished: %d", cave_simulation->child_processes,
+                    cave_simulation->child_processes_finished);
         }
         logger_log(&cave_simulation->logger_interface, "Total number of processes run: %d",
                 cave_simulation->child_processes);
@@ -364,7 +366,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         }
 
         uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 1000);
-        //usleep(wait_time);
+        usleep(wait_time);
     } while (!cave_simulation->shared_memory->interrupted && cave_simulation->shared_memory->time
         < total_simulation_time);
 
