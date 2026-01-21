@@ -11,7 +11,7 @@ typedef struct {
     int message_queue;
     int semaphores;
     LoggerInterface logger;
-    volatile bool logger_initialized;
+    volatile atomic_bool logger_initialized;
 } Visitor;
 
 typedef enum {

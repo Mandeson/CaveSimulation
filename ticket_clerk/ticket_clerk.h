@@ -14,7 +14,7 @@ typedef struct {
     int semaphores;
 
     LoggerInterface logger;
-    volatile bool logger_initialized;
+    volatile atomic_bool logger_initialized;
 } TicketClerk;
 
 typedef enum {

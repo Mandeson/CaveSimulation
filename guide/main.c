@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 Guide guide;
-volatile bool guide_destroying = false;
+volatile atomic_bool guide_destroying = false;
 
 void sigusr1_handler(int);
 void sigusr2_handler(int);

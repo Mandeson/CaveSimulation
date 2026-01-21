@@ -119,6 +119,8 @@ static void collect_visitors(Guide *guide) {
 }
 
 static void guide_tour(Guide *guide) {
+    guide->tour_cancelled = false;
+
     logger_log(&guide->logger,
             "Starting the tour with %d visitors", guide->number + 1,
             guide->trail_visitors_count);

@@ -37,28 +37,36 @@ typedef struct {
 } VisitorWaiting;
 
 typedef struct {
+    // Set on initialization
+    
     int Tp;
     int Tk;
     int N[2];
     int T[2];
     int K; // capacity of the catwalks
 
-    volatile atomic_int time;
-
     int ticket_clerk_pid;
     int guide1_pid;
     int guide2_pid;
 
     int catwalk_pipe[2][2];
+
+
+    // Changable variables
+
+    volatile atomic_int time;
+
     volatile atomic_int catwalk_visitors[2];
 
     volatile atomic_bool terminating;
     volatile atomic_bool interrupted;
 
+
+    // Protected by semaphores
+
     volatile VisitorWaiting visitors_waiting[GUIDE_COUNT][VISITORS_WAITING_SIZE];
     volatile int priority_ticket_line_size;
     volatile int regular_ticket_line_size;
-    volatile int guides_finished;
 } SharedMemory;
 
 typedef struct {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdatomic.h>
 #include <stdbool.h>
 #include "common.h"
 #include "logger_interface.h"
@@ -12,9 +13,9 @@ typedef struct {
     int trail_visitors_count;
 
     Array trail_visitors;
-    volatile bool trail_visitors_initialized;
+    volatile atomic_bool trail_visitors_initialized;
 
-    volatile bool tour_cancelled;
+    volatile atomic_bool tour_cancelled;
     bool terminate;
 
     SharedMemory *shared_memory;
@@ -22,7 +23,7 @@ typedef struct {
     int semaphores;
 
     LoggerInterface logger;
-    volatile bool logger_initialized;
+    volatile atomic_bool logger_initialized;
 } Guide;
 
 typedef enum {
