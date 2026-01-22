@@ -205,8 +205,8 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
             logger_log(&cave_simulation->logger_interface, "Processes: %d Finished: %d", cave_simulation->child_processes,
                     cave_simulation->child_processes_finished);
         }
-        logger_log(&cave_simulation->logger_interface, "Total number of processes run: %d",
-                cave_simulation->child_processes);
+        logger_log(&cave_simulation->logger_interface, "Total number of child processes run: %d. Finished: %d",
+                cave_simulation->child_processes, cave_simulation->child_processes_finished);
         pthread_cancel(cave_simulation->child_wait_thread);
 
         close_catwalk_pipe_input(cave_simulation->shared_memory);
