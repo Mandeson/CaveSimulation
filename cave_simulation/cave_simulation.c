@@ -270,6 +270,10 @@ static void *child_wait_thread_function(void *arg) {
     return NULL;
 }
 
+static int random_time_between_visitors() {
+    return rand() % CAVE_SIMULATION_MAX_VISITORS_DELAY;
+}
+
 CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {    
     logger_log(&cave_simulation->logger_interface,
             "Running cave simulation (PID: %d)", getpid());
@@ -334,39 +338,39 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         cave_simulation->child_processes++;
     }
 
-    int total_simulation_time = (cave_simulation->shared_memory->Tk - cave_simulation->shared_memory->Tp) * 3600;
+    int total_simulation_time = (cave_simulation->shared_memory->Tk
+            - cave_simulation->shared_memory->Tp) * 3600;
 
     int last_time = cave_simulation->shared_memory->time;
+    int to_next_visitor = random_time_between_visitors();
 
     do {
-        if (cave_simulation->child_processes - cave_simulation->child_processes_finished + 1
+        if (cave_simulation->shared_memory->time - last_time >= to_next_visitor) {
+            last_time = cave_simulation->shared_memory->time;
+            to_next_visitor = random_time_between_visitors();
+
+            if (cave_simulation->child_processes - cave_simulation->child_processes_finished + 1
                 < MAX_PROCESSES) {
-            fork_res = fork();
-            if (fork_res == -1) {
-                perror("cave_simulation_run: fork (Visitor)");
-                return CAVE_SIMULATION_RUN_FAIL;
-            }
-            if (fork_res == 0) {
-                signal(SIGINT, SIG_IGN);
-
-                close_catwalk_pipe_output(cave_simulation->shared_memory);
-
-                if (execl("./Visitor", "Visitor", NULL) == -1) {
-                    perror("cave_simulation_run: execl (Visitor)");
+                fork_res = fork();
+                if (fork_res == -1) {
+                    perror("cave_simulation_run: fork (Visitor)");
                     return CAVE_SIMULATION_RUN_FAIL;
                 }
+                if (fork_res == 0) {
+                    signal(SIGINT, SIG_IGN);
+
+                    close_catwalk_pipe_output(cave_simulation->shared_memory);
+
+                    if (execl("./Visitor", "Visitor", NULL) == -1) {
+                        perror("cave_simulation_run: execl (Visitor)");
+                        return CAVE_SIMULATION_RUN_FAIL;
+                    }
+                }
+                cave_simulation->child_processes++;
             }
-            cave_simulation->child_processes++;
         }
 
-        if (cave_simulation->shared_memory->time - last_time > 1000) {
-            last_time = cave_simulation->shared_memory->time;
-            printf("Heartbeat\n");
-            fflush(stdout);
-        }
-
-        uint64_t wait_time = rand() % (CAVE_SIMULATION_MAX_VISITORS_DELAY * 1000);
-        usleep(wait_time);
+        usleep(1000);
     } while (!cave_simulation->shared_memory->interrupted && cave_simulation->shared_memory->time
         < total_simulation_time);
 
