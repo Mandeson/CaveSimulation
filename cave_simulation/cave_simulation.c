@@ -84,6 +84,8 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log
     cave_simulation->shared_memory_created = true;
     init_shared_memory(cave_simulation->shared_memory);
 
+    init_parameters(cave_simulation);
+
     if (logger_init(&cave_simulation->logger, log_to_stdout) == -1)
         return CAVE_SIMULATION_INIT_FAIL;
 
@@ -133,8 +135,6 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log
         destroy_shared_memory(&cave_simulation->shared_memory, shared_memory);
         return CAVE_SIMULATION_INIT_FAIL;
     }
-
-    init_parameters(cave_simulation);
 
     return CAVE_SIMULATION_SUCCESS;
 }
