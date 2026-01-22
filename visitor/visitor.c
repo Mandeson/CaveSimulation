@@ -100,7 +100,7 @@ static int move_through_catwalk(Visitor *visitor) {
         }
     }
 
-    logger_log(&visitor->logger, "Exiting the catwalk with %d children",
+    logger_log(&visitor->logger, "Leaving the catwalk with %d children",
             visitor->visitor_info.children_count);
 
     free(buffer);
@@ -151,8 +151,6 @@ VisitorRes visitor_run(Visitor *visitor) {
     if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run - catwalk", true)
             != MESSAGE_QUEUE_RECEIVE_SUCCESS)
         return VISITOR_RUN_FAIL;
-
-    logger_log(&visitor->logger, "Going into the cave");
     
     if (move_through_catwalk(visitor) == -1)
         return VISITOR_RUN_FAIL;
@@ -178,8 +176,6 @@ VisitorRes visitor_run(Visitor *visitor) {
     if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run - catwalk (out)", true)
             != MESSAGE_QUEUE_RECEIVE_SUCCESS)
         return VISITOR_RUN_FAIL;
-
-    logger_log(&visitor->logger, "Left the cave");
 
     return VISITOR_SUCCESS;
 }

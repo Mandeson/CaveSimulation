@@ -88,20 +88,19 @@ static int receive_message(Guide *guide) {
 }
 
 static void lead_visitors_through_catwalk(Guide *guide) {
+    // Go through the catwalk
     usleep(guide->shared_memory->K * 1000);
 
     size_t person_space = PIPE_BUF / guide->shared_memory->K;
     void *buffer = malloc(person_space);
 
     int visitors_collected = 0;
-    while (visitors_collected < guide->trail_visitors_count) {//TOCHANGHE TO trail_visitors_count
+    while (visitors_collected < guide->trail_visitors_count) {
         usleep(1000);
 
         int catwalk_visitors[2] = {guide->shared_memory->catwalk_visitors[0],
                 guide->shared_memory->catwalk_visitors[1]};
         if (catwalk_visitors[0] != 0 || catwalk_visitors[1] != 0) {
-            logger_log(&guide->logger, "Collecting a visitor from catwalk");
-
             int catwalk_number = (catwalk_visitors[1] > catwalk_visitors[0]) ? 1 : 0;
 
             while (read(guide->shared_memory->catwalk_pipe[catwalk_number][0], buffer,
@@ -112,8 +111,6 @@ static void lead_visitors_through_catwalk(Guide *guide) {
 
             guide->shared_memory->catwalk_visitors[catwalk_number]--;
             visitors_collected++;
-
-            logger_log(&guide->logger, "Collected a visitor from catwalk");
         }
     }
 
@@ -160,8 +157,6 @@ static void guide_tour(Guide *guide) {
                     strlen(message) + 1, "guide_tour - tour cancel");
         }
     }
-
-    logger_log(&guide->logger, "Leading the visitors out of the cave");
 
     // Lead the visitors out of the cave
     lead_visitors_through_catwalk(guide);
