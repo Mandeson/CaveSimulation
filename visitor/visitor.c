@@ -60,8 +60,11 @@ VisitorRes visitor_init(Visitor *visitor) {
     snprintf(logger_tag, sizeof(logger_tag), "Visitor (PID %d)", getpid());
     logger_interface_new(&visitor->logger, logger_tag, shared_memory);
 
-    if (visitor->shared_memory->interrupted)
+    if (visitor->shared_memory->interrupted) {
+        if (visitor->shared_memory != NULL)
+            detach_shared_memory(&visitor->shared_memory);
         return VISITOR_INIT_FAIL;
+    }
 
     return VISITOR_SUCCESS;
 }
