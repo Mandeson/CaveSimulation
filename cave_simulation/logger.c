@@ -48,7 +48,7 @@ int logger_init(Logger *logger, bool log_to_stdout) {
 
     // Create the program output directory
     snprintf(tmp, 256, "%s/%s", log_directory, time_date);
-    if (mkdir(tmp, 0700) == -1) {
+    if (mkdir(tmp, 0700) == -1 && errno != EEXIST) {
         perror("logger_init: mkdir 2");
         return -1;
     }

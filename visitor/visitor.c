@@ -83,7 +83,7 @@ static int move_through_catwalk(Visitor *visitor) {
     logger_log(&visitor->logger, "Entering the catwalk %d with %d children",
             catwalk_number + 1, visitor->visitor_info.children_count);
 
-    size_t person_space = PIPE_BUF / visitor->shared_memory->K;
+    size_t person_space = PIPE_BUF / visitor->shared_memory->parameters.K;
     void *buffer = malloc(person_space);
     if (buffer == NULL) {
         logger_log(&visitor->logger, "Error: move_through_catwalk: malloc failed");
@@ -91,7 +91,7 @@ static int move_through_catwalk(Visitor *visitor) {
     }
 
     // Spend time walking through the catwalk
-    usleep(visitor->shared_memory->K * 1000);
+    usleep(visitor->shared_memory->parameters.K * 1000);
 
     for (int i = 0; i < 1 + visitor->visitor_info.children_count; i++) {
         if (write(visitor->shared_memory->catwalk_pipe[catwalk_number][1], buffer, person_space)
@@ -169,7 +169,7 @@ VisitorRes visitor_run(Visitor *visitor) {
     } else {
         logger_log(&visitor->logger, "Started the tour");
 
-        usleep(visitor->shared_memory->T[ticket_message.trail_nr] * 60 * 1000);
+        usleep(visitor->shared_memory->parameters.T[ticket_message.trail_nr] * 60 * 1000);
 
         logger_log(&visitor->logger, "Finished the tour");
     }

@@ -4,6 +4,18 @@
 #include <string.h>
 #include <unistd.h>
 
+#define TEST_COUNT 1
+
+const SimulationParameters tests[TEST_COUNT] = {
+    {
+        .Tp = 11,
+        .Tk = 18,
+        .N = {5, 5},
+        .T = {1, 1},
+        .K = 3
+    }
+};
+
 CaveSimulation cave_simulation;
 
 void sigint_handler(int);
@@ -31,20 +43,24 @@ int main(int argsc, char *argv[]) {
         }
     }
 
-    CaveSimulationRes res = cave_simulation_init(&cave_simulation, log_to_stdout,
-            skip_start_confirmation, disable_guard);
-    if (res != CAVE_SIMULATION_SUCCESS)
-        return res;
+    for (int i = 0; i < TEST_COUNT; i++) {
+        CaveSimulationRes res = cave_simulation_init(&cave_simulation, &tests[i], log_to_stdout,
+                skip_start_confirmation, disable_guard);
+        if (res != CAVE_SIMULATION_SUCCESS)
+            return res;
 
-    res = cave_simulation_run(&cave_simulation);
+        res = cave_simulation_run(&cave_simulation);
 
-    CaveSimulationRes destroy_res = cave_simulation_destroy(&cave_simulation);
+        CaveSimulationRes destroy_res = cave_simulation_destroy(&cave_simulation);
 
-    if (res != CAVE_SIMULATION_SUCCESS)
-        return res;
-    
-    if (destroy_res != CAVE_SIMULATION_SUCCESS)
-        return destroy_res;
+        if (res != CAVE_SIMULATION_SUCCESS)
+            return res;
+        
+        if (destroy_res != CAVE_SIMULATION_SUCCESS)
+            return destroy_res;
+    }
+
+    return 0;
 }
 
 void sigint_handler(int sig) {

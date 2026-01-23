@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 Time time_from_seconds(int time, const SharedMemory *shared_memory) {
-    time += shared_memory->Tp * 3600;
+    time += shared_memory->parameters.Tp * 3600;
     Time result;
     result.hours = time / 3600;
     result.minutes = (time % 3600) / 60;

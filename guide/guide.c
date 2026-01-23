@@ -89,9 +89,9 @@ static int receive_message(Guide *guide) {
 
 static void lead_visitors_through_catwalk(Guide *guide) {
     // Go through the catwalk
-    usleep(guide->shared_memory->K * 1000);
+    usleep(guide->shared_memory->parameters.K * 1000);
 
-    size_t person_space = PIPE_BUF / guide->shared_memory->K;
+    size_t person_space = PIPE_BUF / guide->shared_memory->parameters.K;
     void *buffer = malloc(person_space);
     if (buffer == NULL) {
         logger_log(&guide->logger, "Error: lead_visitors_through_catwalk: malloc failed");
@@ -147,7 +147,7 @@ static void guide_tour(Guide *guide) {
         }
 
         // Lead the tour
-        usleep(guide->shared_memory->T[guide->number] * 60 * 1000);
+        usleep(guide->shared_memory->parameters.T[guide->number] * 60 * 1000);
 
         logger_log(&guide->logger, "Ending the tour");
     } else {
@@ -190,7 +190,7 @@ bool greet_visitors(Guide *guide) {
                 &guide->shared_memory->visitors_waiting[guide->number][i];
         if (visitor_waiting->pid != 0) {
             if (guide->trail_visitors_count + 1 + visitor_waiting->children_count
-                    <= guide->shared_memory->N[guide->number]) {
+                    <= guide->shared_memory->parameters.N[guide->number]) {
                 guide->trail_visitors_count += 1 + visitor_waiting->children_count;
                 int *pid = array_add_empty(&guide->trail_visitors);
                 *pid = visitor_waiting->pid;
@@ -208,7 +208,7 @@ bool greet_visitors(Guide *guide) {
 
     // Even if there is no one left waiting, if the number of visitors is equal to the limit,
     // start the tour
-    if (guide->trail_visitors_count == guide->shared_memory->N[guide->number])
+    if (guide->trail_visitors_count == guide->shared_memory->parameters.N[guide->number])
         enough_visitors = true;
 
     return enough_visitors;
@@ -221,7 +221,7 @@ GuideRes guide_run(Guide *guide) {
 
     guide->waiting_by_guide_semaphore = (guide->number == 1) ? WAITING_BY_GUIDE2_SEMAPHORE
             : WAITING_BY_GUIDE1_SEMAPHORE;
-    int timeout = (guide->shared_memory->T[guide->number]) * 60;
+    int timeout = (guide->shared_memory->parameters.T[guide->number]) * 60;
     int timeout_counter = 0;
     do {
         if (greet_visitors(guide) || (timeout_counter >= timeout && guide->trail_visitors_count > 0)) {

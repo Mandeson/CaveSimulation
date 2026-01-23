@@ -32,6 +32,14 @@
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
 typedef struct {
+    int Tp;
+    int Tk;
+    int N[2];
+    int T[2];
+    int K; // capacity of the catwalks
+} SimulationParameters;
+
+typedef struct {
     int pid;
     int children_count;
 } VisitorWaiting;
@@ -39,11 +47,7 @@ typedef struct {
 typedef struct {
     // Set on initialization
     
-    int Tp;
-    int Tk;
-    int N[2];
-    int T[2];
-    int K; // capacity of the catwalks
+    SimulationParameters parameters;
 
     int ticket_clerk_pid;
     int guide1_pid;

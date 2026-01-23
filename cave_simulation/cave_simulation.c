@@ -55,18 +55,14 @@ static int init_semaphores(int semaphores) {
     return 0;
 }
 
-static void init_parameters(CaveSimulation *cave_simulation) {
-    SharedMemory *shared_memory = cave_simulation->shared_memory;
-    shared_memory->Tp = 11;
-    shared_memory->Tk = 18;
-    shared_memory->N[0] = 5;
-    shared_memory->N[1] = 5;
-    shared_memory->T[0] = 1;
-    shared_memory->T[1] = 1;
-    shared_memory->K = 3;
+static void init_parameters(CaveSimulation *cave_simulation,
+        const SimulationParameters *parameters) {
+    // TODO: Check if parameters are valid
+    cave_simulation->shared_memory->parameters = *parameters;
 }
 
-CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log_to_stdout,
+CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
+        const SimulationParameters *parameters, bool log_to_stdout,
         bool skip_start_confirmation, bool disable_guard) {
     signal(SIGUSR1, SIG_IGN);
 
@@ -84,10 +80,12 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log
     cave_simulation->shared_memory_created = true;
     init_shared_memory(cave_simulation->shared_memory);
 
-    init_parameters(cave_simulation);
+    init_parameters(cave_simulation, parameters);
 
-    if (logger_init(&cave_simulation->logger, log_to_stdout) == -1)
+    if (logger_init(&cave_simulation->logger, log_to_stdout) == -1) {
+        destroy_shared_memory(&cave_simulation->shared_memory, shared_memory);
         return CAVE_SIMULATION_INIT_FAIL;
+    }
 
     logger_interface_new(&cave_simulation->logger_interface, "CaveSimulation",
             cave_simulation->shared_memory);
@@ -158,18 +156,19 @@ static void close_catwalk_pipe_output(const SharedMemory *shared_memory) {
 CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     cave_simulation->shared_memory->terminating = true;
 
+    bool interrupted = cave_simulation->shared_memory->interrupted;
+
     logger_log(&cave_simulation->logger_interface, "Destroying cave simulation");
 
     bool error = false;
 
     if (cave_simulation->simulation_running) {
-        if (!cave_simulation->shared_memory->interrupted && !cave_simulation->disable_guard
-                && cave_simulation->guard_pid != 0)
+        if (!interrupted && !cave_simulation->disable_guard && cave_simulation->guard_pid != 0)
             kill(cave_simulation->guard_pid, SIGUSR1);
 
         // If the simulation wasn't interrupted, wait only for visitors
         int leave_processes = 0;
-        if (!cave_simulation->shared_memory->interrupted)
+        if (!interrupted)
             leave_processes += GUIDE_COUNT + 1; // guides + ticket clerk
         logger_log(&cave_simulation->logger_interface, "Waiting for visitors to finish");
         while (cave_simulation->child_processes - cave_simulation->child_processes_finished
@@ -234,7 +233,12 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
         error = true;
     }
 
-    return error ? CAVE_SIMULATION_DESTROY_FAIL : CAVE_SIMULATION_SUCCESS;
+    CaveSimulationRes res = error ? CAVE_SIMULATION_DESTROY_FAIL : CAVE_SIMULATION_SUCCESS;
+
+    if (interrupted)
+        exit(res);
+
+    return res;
 }
 
 static int spawn_guide(CaveSimulation *cave_simulation) {
@@ -338,8 +342,8 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         cave_simulation->child_processes++;
     }
 
-    int total_simulation_time = (cave_simulation->shared_memory->Tk
-            - cave_simulation->shared_memory->Tp) * 3600;
+    int total_simulation_time = (cave_simulation->shared_memory->parameters.Tk
+            - cave_simulation->shared_memory->parameters.Tp) * 3600;
 
     int last_time = cave_simulation->shared_memory->time;
     int to_next_visitor = random_time_between_visitors();
@@ -374,7 +378,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     } while (!cave_simulation->shared_memory->interrupted && cave_simulation->shared_memory->time
         < total_simulation_time);
 
-    logger_log(&cave_simulation->logger_interface, "Simulation ended");
+    logger_log(&cave_simulation->logger_interface, "New visitors stopped coming");
 
     return CAVE_SIMULATION_SUCCESS;
 }
@@ -385,7 +389,6 @@ void cave_simulation_terminate(CaveSimulation *cave_simulation) {
             return;
         cave_simulation->shared_memory->interrupted = true;
         cave_simulation_destroy(cave_simulation);
-        exit(0);
     }
 
     cave_simulation->shared_memory->interrupted = true;

@@ -45,7 +45,8 @@ typedef enum {
     CAVE_SIMULATION_RUN_FAIL
 } CaveSimulationRes;
 
-CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation, bool log_to_stdout,
+CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
+        const SimulationParameters *parameters, bool log_to_stdout,
         bool skip_start_confirmation, bool disable_guard);
 CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation);
 CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation);
