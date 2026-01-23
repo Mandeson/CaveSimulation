@@ -25,7 +25,7 @@ void logger_log(const LoggerInterface *logger, const char *format, ...) {
 
     int time = logger->shared_memory ? logger->shared_memory->time : -1;
     char time_string[9];
-    time_to_string(time_string, time_from_seconds(time, logger->shared_memory));
+    time_to_string(time_string, time_from_seconds(time, &logger->shared_memory->parameters));
 
     char str[sizeof(message.mtext) + 1];
     snprintf(str, sizeof(str), "[%s] %s: %s", time_string,

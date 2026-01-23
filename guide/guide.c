@@ -223,17 +223,16 @@ GuideRes guide_run(Guide *guide) {
 
     guide->waiting_by_guide_semaphore = (guide->number == 1) ? WAITING_BY_GUIDE2_SEMAPHORE
             : WAITING_BY_GUIDE1_SEMAPHORE;
-    int timeout = (guide->shared_memory->parameters.T[guide->number]) * 60;
-    int timeout_counter = 0;
+    int timeout = (guide->shared_memory->parameters.T[guide->number]) * 60 / 10;
+    int last_time = guide->shared_memory->time;
     do {
-        if (greet_visitors(guide) || (timeout_counter >= timeout && guide->trail_visitors_count > 0)) {
+        if (greet_visitors(guide) || (guide->shared_memory->time
+                - last_time >= timeout && guide->trail_visitors_count > 0)) {
             guide_tour(guide);
-            timeout_counter = 0;
+            last_time = guide->shared_memory->time;
         }
 
-        int sleep_time = 1;
-        while (usleep(sleep_time * 1000) == -1) {}
-        timeout_counter += sleep_time;
+        while (usleep(1000) == -1) {}
 
         int res;
         do {

@@ -7,9 +7,7 @@
 #include <stdatomic.h>
 #include <sys/ipc.h>
 
-// Maximum delay between new visitors coming to the ticket office
-#define CAVE_SIMULATION_MAX_VISITORS_DELAY 100
-#define MAX_PROCESSES 500
+#define MAX_PROCESSES 2000
 
 typedef struct {
     bool disable_guard;

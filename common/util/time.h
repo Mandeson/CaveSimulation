@@ -7,5 +7,6 @@ typedef struct {
     int seconds;
 } Time;
 
-Time time_from_seconds(int time, const SharedMemory *shared_memory);
+Time time_from_seconds(int time, const SimulationParameters *parameters);
 void time_to_string(char string[9], Time time);
+int calculate_closing_time(const SimulationParameters *parameters);

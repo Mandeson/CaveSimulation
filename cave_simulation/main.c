@@ -4,16 +4,38 @@
 #include <string.h>
 #include <unistd.h>
 
-#define TEST_COUNT 1
+#define TEST_COUNT 4
 
 const SimulationParameters tests[TEST_COUNT] = {
+    {
+        .Tp = 10,
+        .Tk = 18,
+        .N = {200, 400},
+        .T = {60, 40},
+        .K = 4
+    },
     {
         .Tp = 11,
         .Tk = 18,
         .N = {5, 5},
-        .T = {1, 1},
+        .T = {10, 10},
         .K = 3
-    }
+    },
+    {
+        .Tp = 7,
+        .Tk = 18,
+        .N = {50, 50},
+        .T = {10, 60},
+        .K = 6
+    },
+    {
+        .Tp = 12,
+        .Tk = 18,
+        .N = {5, 60},
+        .T = {10, 30},
+        .K = 21
+    },
+    
 };
 
 CaveSimulation cave_simulation;
@@ -26,7 +48,7 @@ int main(int argsc, char *argv[]) {
     psa.sa_handler = sigint_handler;
     psa.sa_flags = 0; // Do not restart system calls
     sigaction(SIGINT, &psa, NULL);
-    
+
     signal(SIGUSR1, SIG_IGN);
 
     bool log_to_stdout = false;

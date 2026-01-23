@@ -1,5 +1,6 @@
 #include "ticket_clerk.h"
 #include "common.h"
+#include "util/time.h"
 #include <linux/limits.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -109,7 +110,12 @@ static void ticket_clerk_sell_tickets(TicketClerk *ticket_clerk, const VisitorMe
         trail_nr = rand() % 2;
     }
 
-    if (ticket_clerk_add_visitor(ticket_clerk, request, trail_nr) == 0) {
+    logger_log(&ticket_clerk->logger,
+            "%d %d", ticket_clerk->shared_memory->time,
+            calculate_closing_time(&ticket_clerk->shared_memory->parameters));
+    if (ticket_clerk->shared_memory->time
+            < calculate_closing_time(&ticket_clerk->shared_memory->parameters)
+            && ticket_clerk_add_visitor(ticket_clerk, request, trail_nr) == 0) {
         int cost = TICKET_COST;
         for (int i = 0; i < info->children_count; i++) {
             if (info->children_ages[i] >= 3)
@@ -162,18 +168,36 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
             }
         } while (res != MESSAGE_QUEUE_RECEIVE_NO_MESSAGE);
 
-        // Critical section
-        take_semaphore(ticket_clerk->semaphores, SHARED_MEMORY_SEMAPHORE);
-
-        if (ticket_clerk->shared_memory->priority_ticket_line_size > 0) {
-            give_semaphore(ticket_clerk->semaphores, TICKET_PRIORITY_SEMAPHORE);
-            ticket_clerk->shared_memory->priority_ticket_line_size--;
-        } else if (ticket_clerk->shared_memory->regular_ticket_line_size > 0) {
-            give_semaphore(ticket_clerk->semaphores, TICKET_REGULAR_SEMAPHORE);
-            ticket_clerk->shared_memory->regular_ticket_line_size--;
+        take_semaphore(ticket_clerk->semaphores, WAITING_BY_GUIDE1_SEMAPHORE);
+        int visitors_count1 = 0;
+        for (int i = 0; i < VISITORS_WAITING_SIZE; i++) {
+            if (ticket_clerk->shared_memory->visitors_waiting[0][i].pid != 0)
+                visitors_count1 += ticket_clerk->shared_memory->visitors_waiting[0][i].children_count + 1;
         }
+        give_semaphore(ticket_clerk->semaphores, WAITING_BY_GUIDE1_SEMAPHORE);
 
-        give_semaphore(ticket_clerk->semaphores, SHARED_MEMORY_SEMAPHORE);
+        take_semaphore(ticket_clerk->semaphores, WAITING_BY_GUIDE2_SEMAPHORE);
+        int visitors_count2 = 0;
+        for (int i = 0; i < VISITORS_WAITING_SIZE; i++) {
+            if (ticket_clerk->shared_memory->visitors_waiting[1][i].pid != 0)
+                visitors_count2 += ticket_clerk->shared_memory->visitors_waiting[1][i].children_count + 1;
+        }
+        give_semaphore(ticket_clerk->semaphores, WAITING_BY_GUIDE2_SEMAPHORE);
+
+        if (visitors_count1 < ticket_clerk->shared_memory->parameters.N[0]
+                && visitors_count2 < ticket_clerk->shared_memory->parameters.N[1]) {
+            take_semaphore(ticket_clerk->semaphores, SHARED_MEMORY_SEMAPHORE);
+
+            if (ticket_clerk->shared_memory->priority_ticket_line_size > 0) {
+                give_semaphore(ticket_clerk->semaphores, TICKET_PRIORITY_SEMAPHORE);
+                ticket_clerk->shared_memory->priority_ticket_line_size--;
+            } else if (ticket_clerk->shared_memory->regular_ticket_line_size > 0) {
+                give_semaphore(ticket_clerk->semaphores, TICKET_REGULAR_SEMAPHORE);
+                ticket_clerk->shared_memory->regular_ticket_line_size--;
+            }
+
+            give_semaphore(ticket_clerk->semaphores, SHARED_MEMORY_SEMAPHORE);
+        }
     } while (!terminate);
 
     return TICKET_CLERK_SUCCESS;

@@ -30,6 +30,7 @@
 #define MESSAGE_QUEUE_RECEIVE_FAIL -1
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+#define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
 typedef struct {
     int Tp;

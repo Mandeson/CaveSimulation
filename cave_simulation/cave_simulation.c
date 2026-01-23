@@ -17,6 +17,7 @@
 #include "common.h"
 #include "logger.h"
 #include "operations.h"
+#include "util/time.h"
 
 static void init_shared_memory(SharedMemory *shared_memory) {
     memset(shared_memory, 0, sizeof(SharedMemory));
@@ -288,8 +289,10 @@ static void *child_wait_thread_function(void *arg) {
     return NULL;
 }
 
-static int random_time_between_visitors() {
-    return rand() % CAVE_SIMULATION_MAX_VISITORS_DELAY;
+static int random_time_between_visitors(const SimulationParameters *parameters) {
+    int time = MAX((parameters->T[0] * 60 + parameters->T[1] * 60)
+            / (parameters->N[0] + parameters->N[1]), 10);
+    return rand() % (time * 2);
 }
 
 CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {    
@@ -361,16 +364,15 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         cave_simulation->shared_memory->processes_starting++;
     }
 
-    int total_simulation_time = (cave_simulation->shared_memory->parameters.Tk
-            - cave_simulation->shared_memory->parameters.Tp) * 3600;
-
     int last_time = cave_simulation->shared_memory->time;
-    int to_next_visitor = random_time_between_visitors();
+    int to_next_visitor = random_time_between_visitors(
+            &cave_simulation->shared_memory->parameters);
 
     do {
         if (cave_simulation->shared_memory->time - last_time >= to_next_visitor) {
             last_time = cave_simulation->shared_memory->time;
-            to_next_visitor = random_time_between_visitors();
+            to_next_visitor = random_time_between_visitors(
+                    &cave_simulation->shared_memory->parameters);
 
             if (cave_simulation->child_processes - cave_simulation->child_processes_finished + 1
                 < MAX_PROCESSES) {
@@ -396,7 +398,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
 
         usleep(1000);
     } while (!cave_simulation->shared_memory->interrupted && cave_simulation->shared_memory->time
-        < total_simulation_time);
+        < calculate_closing_time(&cave_simulation->shared_memory->parameters));
 
     logger_log(&cave_simulation->logger_interface, "New visitors stopped coming");
 
