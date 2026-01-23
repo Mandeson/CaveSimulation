@@ -90,6 +90,8 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
     logger_interface_new(&cave_simulation->logger_interface, "CaveSimulation",
             cave_simulation->shared_memory);
 
+    cave_simulation->logger_initialized = true;
+
     if (!skip_start_confirmation) {
         printf("Press enter to start the simulation ");
         fflush(stdout);
@@ -158,7 +160,8 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
 
     bool interrupted = cave_simulation->shared_memory->interrupted;
 
-    logger_log(&cave_simulation->logger_interface, "Destroying cave simulation");
+    if (cave_simulation->logger_initialized)
+        logger_log(&cave_simulation->logger_interface, "Destroying cave simulation");
 
     bool error = false;
 
@@ -224,8 +227,9 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
         clock_destroy(&cave_simulation->clock);
     }
 
-    logger_log(&cave_simulation->logger_interface,
-            "Destroying cave simulation (PID: %d)", getpid());
+    if (cave_simulation->logger_initialized)
+        logger_log(&cave_simulation->logger_interface,
+                "Destroying cave simulation (PID: %d)", getpid());
     
     if (cave_simulation->semaphores_created
             && destroy_semaphores(cave_simulation->semaphores) == -1)
@@ -235,7 +239,8 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
             && destroy_message_queue(cave_simulation->message_queue) == -1)
         error = true;
 
-    logger_destroy(&cave_simulation->logger);
+    if (cave_simulation->logger_initialized)
+        logger_destroy(&cave_simulation->logger);
 
     if (cave_simulation->shared_memory_created
         && destroy_shared_memory(&cave_simulation->shared_memory,
@@ -398,7 +403,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
 }
 
 void cave_simulation_terminate(CaveSimulation *cave_simulation) {
-    if (!cave_simulation->simulation_running && !cave_simulation->shared_memory->interrupted)
+    if (!cave_simulation->simulation_running && cave_simulation->shared_memory->interrupted)
         return;
 
     cave_simulation->shared_memory->interrupted = true;
