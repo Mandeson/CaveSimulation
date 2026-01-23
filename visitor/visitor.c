@@ -85,6 +85,10 @@ static int move_through_catwalk(Visitor *visitor) {
 
     size_t person_space = PIPE_BUF / visitor->shared_memory->K;
     void *buffer = malloc(person_space);
+    if (buffer == NULL) {
+        logger_log(&visitor->logger, "Error: move_through_catwalk: malloc failed");
+        return -1;
+    }
 
     // Spend time walking through the catwalk
     usleep(visitor->shared_memory->K * 1000);

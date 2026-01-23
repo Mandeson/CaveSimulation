@@ -93,6 +93,10 @@ static void lead_visitors_through_catwalk(Guide *guide) {
 
     size_t person_space = PIPE_BUF / guide->shared_memory->K;
     void *buffer = malloc(person_space);
+    if (buffer == NULL) {
+        logger_log(&guide->logger, "Error: lead_visitors_through_catwalk: malloc failed");
+        return;
+    }
 
     int visitors_collected = 0;
     while (visitors_collected < guide->trail_visitors_count) {

@@ -11,6 +11,8 @@ void array_create(Array *vec, size_t element_size) {
 	vec->capacity = ARRAY_DEFAULT_SIZE * element_size;
 
 	vec->ptr = malloc(vec->capacity);
+	if (vec->ptr == NULL)
+		fprintf(stderr, "array_create: malloc failed\n");
 }
 
 void array_destroy(Array *vec) {
@@ -44,5 +46,7 @@ void array_clear(Array *vec) {
 	if (vec->capacity > 8192) {
 		vec->capacity = ARRAY_DEFAULT_SIZE * vec->element_size;
 		vec->ptr = realloc(vec->ptr, vec->capacity);
+		if (vec->ptr == NULL)
+			fprintf(stderr, "array_clear: realloc failed\n");
 	}
 }
