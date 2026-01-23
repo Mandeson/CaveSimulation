@@ -14,13 +14,6 @@
 typedef struct {
     bool disable_guard;
 
-    volatile atomic_bool simulation_running;
-
-    volatile atomic_bool shared_memory_created;
-    volatile atomic_bool message_queue_created;
-    volatile atomic_bool semaphores_created;
-    volatile atomic_bool logger_initialized;
-
     int shared_memory_id;
     int message_queue;
     int semaphores;
@@ -28,6 +21,7 @@ typedef struct {
     int guard_pid;
 
     Clock clock;
+    volatile atomic_bool simulation_running;
     volatile atomic_int child_processes;
     volatile atomic_int child_processes_finished;
 

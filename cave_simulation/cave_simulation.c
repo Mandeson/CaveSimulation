@@ -1,5 +1,6 @@
 #include "cave_simulation.h"
 
+#include <errno.h>
 #include <linux/limits.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -77,7 +78,6 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
     if (shared_memory == -1)
         return CAVE_SIMULATION_INIT_FAIL;
     cave_simulation->shared_memory_id = shared_memory;
-    cave_simulation->shared_memory_created = true;
     init_shared_memory(cave_simulation->shared_memory);
 
     init_parameters(cave_simulation, parameters);
@@ -90,14 +90,17 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
     logger_interface_new(&cave_simulation->logger_interface, "CaveSimulation",
             cave_simulation->shared_memory);
 
-    cave_simulation->logger_initialized = true;
-
     if (!skip_start_confirmation) {
         printf("Press enter to start the simulation ");
         fflush(stdout);
 
         char c;
-        read(0, &c, 1);
+        if (read(0, &c, 1) == -1 && errno != EINTR) {
+            perror("cave_simulation_init: read (enter)");
+            logger_destroy(&cave_simulation->logger);
+            destroy_shared_memory(&cave_simulation->shared_memory, shared_memory);
+            return CAVE_SIMULATION_INIT_FAIL;
+        }
     }
 
     clock_init(&cave_simulation->clock, cave_simulation->shared_memory);
@@ -110,7 +113,6 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
         return CAVE_SIMULATION_INIT_FAIL;
     }
     cave_simulation->message_queue = message_queue;
-    cave_simulation->message_queue_created = true;
 
     int semaphores = create_semaphores();
     if (semaphores == -1) {
@@ -119,7 +121,6 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
         return CAVE_SIMULATION_INIT_FAIL;
     }
     cave_simulation->semaphores = semaphores;
-    cave_simulation->semaphores_created = true;
     if (init_semaphores(semaphores) == -1) {
         destroy_semaphores(semaphores);
         destroy_message_queue(message_queue);
@@ -160,18 +161,17 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
 
     bool interrupted = cave_simulation->shared_memory->interrupted;
 
-    if (cave_simulation->logger_initialized)
-        logger_log(&cave_simulation->logger_interface, "Destroying cave simulation");
+    logger_log(&cave_simulation->logger_interface, "Destroying cave simulation");
 
     bool error = false;
 
     if (cave_simulation->simulation_running) {
-        if (interrupted) {
-            // Wait for all processes to attach their signal handlers
-            while (cave_simulation->shared_memory->processes_starting > 0) {
-                usleep(1000);
-            }
+        // Wait for all processes to attach their signal handlers
+        while (cave_simulation->shared_memory->processes_starting > 0) {
+            usleep(1000);
+        }
 
+        if (interrupted) {
             // Send SIGUSR1 to all child processes
             kill(0, SIGUSR1);
         }
@@ -220,30 +220,25 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
         logger_log(&cave_simulation->logger_interface, "Total number of child processes run: %d. Finished: %d",
                 cave_simulation->child_processes, cave_simulation->child_processes_finished);
         pthread_cancel(cave_simulation->child_wait_thread);
-
-        close_catwalk_pipe_input(cave_simulation->shared_memory);
-        close_catwalk_pipe_output(cave_simulation->shared_memory);
-
-        clock_destroy(&cave_simulation->clock);
     }
 
-    if (cave_simulation->logger_initialized)
-        logger_log(&cave_simulation->logger_interface,
-                "Destroying cave simulation (PID: %d)", getpid());
+    close_catwalk_pipe_input(cave_simulation->shared_memory);
+    close_catwalk_pipe_output(cave_simulation->shared_memory);
+
+    clock_destroy(&cave_simulation->clock);
+
+    logger_log(&cave_simulation->logger_interface,
+            "Destroying cave simulation (PID: %d)", getpid());
     
-    if (cave_simulation->semaphores_created
-            && destroy_semaphores(cave_simulation->semaphores) == -1)
+    if (destroy_semaphores(cave_simulation->semaphores) == -1)
         error = true;
 
-    if (cave_simulation->message_queue_created
-            && destroy_message_queue(cave_simulation->message_queue) == -1)
+    if (destroy_message_queue(cave_simulation->message_queue) == -1)
         error = true;
 
-    if (cave_simulation->logger_initialized)
-        logger_destroy(&cave_simulation->logger);
+    logger_destroy(&cave_simulation->logger);
 
-    if (cave_simulation->shared_memory_created
-        && destroy_shared_memory(&cave_simulation->shared_memory,
+    if (destroy_shared_memory(&cave_simulation->shared_memory,
             cave_simulation->shared_memory_id) == -1) {
         error = true;
     }
@@ -295,10 +290,13 @@ static int random_time_between_visitors() {
 }
 
 CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {    
-    logger_log(&cave_simulation->logger_interface,
-            "Running cave simulation (PID: %d)", getpid());
+    if (cave_simulation->shared_memory->interrupted)
+        return CAVE_SIMULATION_RUN_FAIL;
 
     cave_simulation->simulation_running = true;
+
+    logger_log(&cave_simulation->logger_interface,
+            "Running cave simulation (PID: %d)", getpid());
 
     setpgid(0, 0);
     signal(SIGUSR1, SIG_IGN);
@@ -403,11 +401,5 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
 }
 
 void cave_simulation_terminate(CaveSimulation *cave_simulation) {
-    if (!cave_simulation->simulation_running && cave_simulation->shared_memory->interrupted)
-        return;
-
     cave_simulation->shared_memory->interrupted = true;
-
-    if (!cave_simulation->simulation_running)
-        cave_simulation_destroy(cave_simulation);
 }

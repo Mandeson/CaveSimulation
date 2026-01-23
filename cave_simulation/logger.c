@@ -144,7 +144,10 @@ void* logger_thread_function(void *arg) {
 
         if (logger->log_to_stdout) {
             // Print log message to stdout
-            puts(message);
+            if (puts(message) == EOF) {
+                fprintf(stderr, "logger_thread_function: puts error\n");
+                return NULL;
+            }
         }
 
         int additional_fd = -1;
@@ -158,15 +161,19 @@ void* logger_thread_function(void *arg) {
         // Add new line character
         message[length] = '\n';
 
-        if (write(logger->file_main, message, length + 1) == -1) {
-            perror("logger_thread_function: write");
-            break;
+        while (write(logger->file_main, message, length + 1) == -1) {
+            if (errno != EINTR) {
+                perror("logger_thread_function: write");
+                return NULL;
+            }
         }
 
         if (additional_fd != -1) {
-            if (write(additional_fd, message, length + 1) == -1) {
-                perror("logger_thread_function: write (additional file)");
-                break;
+            while (write(additional_fd, message, length + 1) == -1) {
+                if (errno != EINTR) {
+                    perror("logger_thread_function: write (additional file)");
+                    return NULL;
+                }
             }
         }
     }

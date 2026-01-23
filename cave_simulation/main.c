@@ -21,7 +21,12 @@ CaveSimulation cave_simulation;
 void sigint_handler(int);
 
 int main(int argsc, char *argv[]) {
-    signal(SIGINT, sigint_handler);
+    struct sigaction psa;
+    memset(&psa, 0, sizeof(psa));
+    psa.sa_handler = sigint_handler;
+    psa.sa_flags = 0; // Do not restart system calls
+    sigaction(SIGINT, &psa, NULL);
+    
     signal(SIGUSR1, SIG_IGN);
 
     bool log_to_stdout = false;
