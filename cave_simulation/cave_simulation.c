@@ -80,8 +80,6 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
     cave_simulation->shared_memory_id = shared_memory;
     init_shared_memory(cave_simulation->shared_memory);
 
-    init_parameters(cave_simulation, parameters);
-
     if (logger_init(&cave_simulation->logger, log_to_stdout) == -1) {
         destroy_shared_memory(&cave_simulation->shared_memory, shared_memory);
         return CAVE_SIMULATION_INIT_FAIL;
@@ -89,6 +87,8 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
 
     logger_interface_new(&cave_simulation->logger_interface, "CaveSimulation",
             cave_simulation->shared_memory);
+
+    init_parameters(cave_simulation, parameters);
 
     if (!skip_start_confirmation) {
         printf("Press enter to start the simulation ");
@@ -105,7 +105,10 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
 
     clock_init(&cave_simulation->clock, cave_simulation->shared_memory);
 
-    logger_log(&cave_simulation->logger_interface, "Initializing cave simulation");
+    logger_log(&cave_simulation->logger_interface, "Initializing cave simulation "
+            "(Parameters: Tp: %d, Tk: %d, N1: %d, N2: %d, T1: %d, T2: %d, K: %d)",
+            parameters->Tp, parameters->Tk, parameters->N[0], parameters->N[1],
+            parameters->T[0], parameters->T[1], parameters->K);
 
     int message_queue = create_message_queue(MESSAGE_QUEUE_ID);
     if (message_queue == -1) {
