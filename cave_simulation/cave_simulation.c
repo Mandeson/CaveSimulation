@@ -163,6 +163,16 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     bool error = false;
 
     if (cave_simulation->simulation_running) {
+        if (interrupted) {
+            // Wait for all processes to attach their signal handlers
+            while (cave_simulation->shared_memory->processes_starting > 0) {
+                usleep(1000);
+            }
+
+            // Send SIGUSR1 to all child processes
+            kill(0, SIGUSR1);
+        }
+
         if (!interrupted && !cave_simulation->disable_guard && cave_simulation->guard_pid != 0)
             kill(cave_simulation->guard_pid, SIGUSR1);
 
@@ -258,6 +268,7 @@ static int spawn_guide(CaveSimulation *cave_simulation) {
         }
     }
     cave_simulation->child_processes++;
+    cave_simulation->shared_memory->processes_starting++;
 
     return fork_res;
 }
@@ -304,6 +315,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         }
     }
     cave_simulation->child_processes++;
+    cave_simulation->shared_memory->processes_starting++;
     cave_simulation->shared_memory->ticket_clerk_pid = fork_res;
 
     pthread_create(&cave_simulation->child_wait_thread, NULL, child_wait_thread_function, cave_simulation);
@@ -340,6 +352,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         cave_simulation->guard_pid = fork_res;
         logger_log(&cave_simulation->logger_interface, "Guard started (PID: %d)", fork_res);
         cave_simulation->child_processes++;
+        cave_simulation->shared_memory->processes_starting++;
     }
 
     int total_simulation_time = (cave_simulation->shared_memory->parameters.Tk
@@ -371,6 +384,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
                     }
                 }
                 cave_simulation->child_processes++;
+                cave_simulation->shared_memory->processes_starting++;
             }
         }
 
@@ -384,15 +398,11 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
 }
 
 void cave_simulation_terminate(CaveSimulation *cave_simulation) {
-    if (!cave_simulation->simulation_running) {
-        if (cave_simulation->shared_memory->interrupted)
-            return;
-        cave_simulation->shared_memory->interrupted = true;
-        cave_simulation_destroy(cave_simulation);
-    }
+    if (!cave_simulation->simulation_running && !cave_simulation->shared_memory->interrupted)
+        return;
 
     cave_simulation->shared_memory->interrupted = true;
 
-    signal(SIGUSR1, SIG_IGN);
-    kill(0, SIGUSR1);
+    if (!cave_simulation->simulation_running)
+        cave_simulation_destroy(cave_simulation);
 }

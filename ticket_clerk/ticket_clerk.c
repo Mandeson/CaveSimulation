@@ -21,6 +21,8 @@ TicketClerkRes ticket_clerk_init(TicketClerk *ticket_clerk) {
         return TICKET_CLERK_INIT_FAIL;
     ticket_clerk->shared_memory = shared_memory;
 
+    ticket_clerk->shared_memory->processes_starting--;
+
     int message_queue = get_message_queue(MESSAGE_QUEUE_ID);
     if (message_queue == -1) {
         if (shared_memory != NULL)

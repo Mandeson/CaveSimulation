@@ -26,6 +26,8 @@ GuideRes guide_init(Guide *guide) {
     if (shared_memory == NULL)
         return GUIDE_INIT_FAIL;
     guide->shared_memory = shared_memory;
+
+    guide->shared_memory->processes_starting--;
     
     int message_queue = get_message_queue(MESSAGE_QUEUE_ID);
     if (message_queue == -1) {

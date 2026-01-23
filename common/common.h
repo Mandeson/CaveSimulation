@@ -58,6 +58,8 @@ typedef struct {
 
     // Changable variables
 
+    volatile atomic_int processes_starting;
+
     volatile atomic_int time;
 
     volatile atomic_int catwalk_visitors[2];

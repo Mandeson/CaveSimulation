@@ -15,6 +15,8 @@ int main(void) {
     if (shared_memory == NULL)
         return -1;
 
+    shared_memory->processes_starting--;
+
     while (1) {
         char c;
         read(0, &c, 1);

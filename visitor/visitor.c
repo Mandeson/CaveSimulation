@@ -37,6 +37,8 @@ VisitorRes visitor_init(Visitor *visitor) {
     if (shared_memory == NULL)
         return VISITOR_INIT_FAIL;
     visitor->shared_memory = shared_memory;
+
+    visitor->shared_memory->processes_starting--;
     
     int message_queue = get_message_queue(MESSAGE_QUEUE_ID);
     if (message_queue == -1) {
