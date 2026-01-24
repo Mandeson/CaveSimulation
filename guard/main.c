@@ -1,4 +1,5 @@
 #include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include "common.h"
@@ -17,12 +18,17 @@ int main(void) {
 
     shared_memory->processes_starting--;
 
+    printf("Guard: Enter '1' or '2' and press enter to send signal to Guide 1 or 2 "
+            " (to cancel the tour)\n");
+
     while (1) {
         char c;
         read(0, &c, 1);
         if (c == '1') {
+            printf("Guard: Sending signal to Guide 1\n");
             kill(shared_memory->guide1_pid, SIGUSR2);
         } else if (c == '2') {
+            printf("Guard: Sending signal to Guide 2\n");
             kill(shared_memory->guide2_pid, SIGUSR2);
         }
     }

@@ -91,6 +91,10 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
 
     init_parameters(cave_simulation, parameters);
 
+    if (!log_to_stdout)
+        printf("CaveSimulation: running in silent mode. Use --log-to-stdout "
+                "to enable logging to the console\n");
+
     if (!skip_start_confirmation) {
         printf("Press enter to start the simulation ");
         fflush(stdout);
@@ -106,10 +110,11 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
 
     clock_init(&cave_simulation->clock, cave_simulation->shared_memory);
 
-    logger_log(&cave_simulation->logger_interface, "Initializing cave simulation "
-            "(Parameters: Tp: %d, Tk: %d, N1: %d, N2: %d, T1: %d, T2: %d, K: %d)",
-            parameters->Tp, parameters->Tk, parameters->N[0], parameters->N[1],
-            parameters->T[0], parameters->T[1], parameters->K);
+    if (!cave_simulation->shared_memory->interrupted)
+        logger_log(&cave_simulation->logger_interface, "Initializing cave simulation "
+                "(Parameters: Tp: %d, Tk: %d, N1: %d, N2: %d, T1: %d, T2: %d, K: %d)",
+                parameters->Tp, parameters->Tk, parameters->N[0], parameters->N[1],
+                parameters->T[0], parameters->T[1], parameters->K);
 
     int message_queue = create_message_queue(MESSAGE_QUEUE_ID);
     if (message_queue == -1) {
@@ -165,7 +170,7 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
 
     bool interrupted = cave_simulation->shared_memory->interrupted;
 
-    logger_log(&cave_simulation->logger_interface, "Destroying cave simulation");
+    logger_log(&cave_simulation->logger_interface, "Started destroying");
 
     bool error = false;
 
@@ -231,8 +236,7 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
 
     clock_destroy(&cave_simulation->clock);
 
-    logger_log(&cave_simulation->logger_interface,
-            "Destroying cave simulation (PID: %d)", getpid());
+    logger_log(&cave_simulation->logger_interface, "Finished destroying");
     
     if (destroy_semaphores(cave_simulation->semaphores) == -1)
         error = true;
