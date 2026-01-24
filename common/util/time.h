@@ -1,5 +1,10 @@
 #pragma once
 
+#define MILLISECONDS_IN_SECOND 1000
+#define SECONDS_IN_MINUTE 60
+
+#define TRIPS_DOABLE_BEFORE_CLOSING 5 / 2
+
 #include "common.h"
 typedef struct {
     int hours;

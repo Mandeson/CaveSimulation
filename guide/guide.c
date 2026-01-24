@@ -17,6 +17,7 @@
 #include "common.h"
 #include "logger_interface.h"
 #include "util/array.h"
+#include "util/time.h"
 
 GuideRes guide_init(Guide *guide) {
     array_create(&guide->trail_visitors, sizeof(int));
@@ -91,7 +92,7 @@ static int receive_message(Guide *guide) {
 
 static void lead_visitors_through_catwalk(Guide *guide) {
     // Go through the catwalk
-    usleep(guide->shared_memory->parameters.K * 1000);
+    usleep(guide->shared_memory->parameters.K * MILLISECONDS_IN_SECOND);
 
     size_t person_space = PIPE_BUF / guide->shared_memory->parameters.K;
     void *buffer = malloc(person_space);
@@ -102,7 +103,7 @@ static void lead_visitors_through_catwalk(Guide *guide) {
 
     int visitors_collected = 0;
     while (visitors_collected < guide->trail_visitors_count) {
-        usleep(1000);
+        usleep(MILLISECONDS_IN_SECOND);
 
         int catwalk_visitors[2] = {guide->shared_memory->catwalk_visitors[0],
                 guide->shared_memory->catwalk_visitors[1]};
@@ -149,7 +150,8 @@ static void guide_tour(Guide *guide) {
         }
 
         // Lead the tour
-        usleep(guide->shared_memory->parameters.T[guide->number] * 60 * 1000);
+        usleep(guide->shared_memory->parameters.T[guide->number] * SECONDS_IN_MINUTE
+                * MILLISECONDS_IN_SECOND);
 
         logger_log(&guide->logger, "Ending the tour");
     } else {
@@ -223,7 +225,7 @@ GuideRes guide_run(Guide *guide) {
 
     guide->waiting_by_guide_semaphore = (guide->number == 1) ? WAITING_BY_GUIDE2_SEMAPHORE
             : WAITING_BY_GUIDE1_SEMAPHORE;
-    int timeout = (guide->shared_memory->parameters.T[guide->number]) * 60;
+    int timeout = (guide->shared_memory->parameters.T[guide->number]) * SECONDS_IN_MINUTE;
     int last_time = guide->shared_memory->time;
     do {
         if (greet_visitors(guide) || (guide->shared_memory->time
@@ -232,7 +234,7 @@ GuideRes guide_run(Guide *guide) {
             last_time = guide->shared_memory->time;
         }
 
-        while (usleep(1000) == -1) {}
+        while (usleep(MILLISECONDS_IN_SECOND) == -1) {}
 
         int res;
         do {

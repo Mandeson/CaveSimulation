@@ -33,11 +33,11 @@
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
 typedef struct {
-    int Tp;
-    int Tk;
-    int N[2];
-    int T[2];
-    int K; // capacity of the catwalks
+    int Tp; // Start time (in hours)
+    int Tk; // End time (in hours)
+    int N[2]; // Number of visitors for each trail
+    int T[2]; // Tour time for each trail (in minutes)
+    int K; // Capacity of the catwalks
 } SimulationParameters;
 
 typedef struct {

@@ -104,9 +104,6 @@ static int ticket_clerk_add_visitor(TicketClerk *ticket_clerk, const VisitorMess
 static void ticket_clerk_sell_tickets(TicketClerk *ticket_clerk, const VisitorMessage *request) {
     const VisitorInfo *info = &request->visitor_info;
 
-    logger_log(&ticket_clerk->logger,
-            "%d %d", ticket_clerk->shared_memory->time,
-            calculate_closing_time(&ticket_clerk->shared_memory->parameters));
     if (ticket_clerk->shared_memory->time
             < calculate_closing_time(&ticket_clerk->shared_memory->parameters)
             && ticket_clerk_add_visitor(ticket_clerk, request, info->trail_nr) == 0) {
@@ -140,9 +137,16 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
     logger_log(&ticket_clerk->logger,
             "Running ticket clerk (PID: %d)", pid);
 
+    char closing_time_str[9];
+    time_to_string(closing_time_str, time_from_seconds(
+            calculate_closing_time(&ticket_clerk->shared_memory->parameters),
+            &ticket_clerk->shared_memory->parameters));
+    logger_log(&ticket_clerk->logger,
+            "Will stop selling tickets at: %s", closing_time_str);
+
     bool terminate = false;
     do {
-        usleep(TICKET_CLERK_DELAY * 1000);
+        usleep(TICKET_CLERK_DELAY * MILLISECONDS_IN_SECOND);
         
         int res;
         do {
@@ -158,7 +162,7 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
                     memcpy(&visitor_message, message.mtext, sizeof(visitor_message));
                     logger_log(&ticket_clerk->logger,
                             "Received ticket request from PID: %d, age: %d, "
-                            "children: %d and sends the ticket",
+                            "children: %d",
                             visitor_message.pid, visitor_message.visitor_info.age,
                             visitor_message.visitor_info.children_count);
 

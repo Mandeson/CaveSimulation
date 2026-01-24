@@ -1,4 +1,5 @@
 #include "clock.h"
+#include "util/time.h"
 #include <stdbool.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -10,13 +11,13 @@ static void *clock_thread(void *arg) {
     gettimeofday(&last_time, NULL);
 
     while (!clock->terminate) {
-        usleep(1000);
+        usleep(MILLISECONDS_IN_SECOND);
         struct timeval time;
         gettimeofday(&time, NULL);
 
         struct timeval diff;
         timersub(&time, &last_time, &diff);
-        if (diff.tv_usec > 1000) {
+        if (diff.tv_usec > MILLISECONDS_IN_SECOND) {
             clock->shared_memory->time++;
             last_time = time;
         }

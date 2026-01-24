@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include "common.h"
 #include "logger_interface.h"
+#include "util/time.h"
 
 static void init_parameters(Visitor *visitor) {
     // Get time for random seed (microseconds)
@@ -16,7 +17,7 @@ static void init_parameters(Visitor *visitor) {
     gettimeofday(&time, NULL);
     srand(time.tv_usec);
 
-    int age = rand() % (80 + 1 - 8) + 8;
+    int age = rand() % (VISITOR_MAX_AGE + 1 - VISITOR_MIN_AGE) + VISITOR_MIN_AGE;
     visitor->visitor_info.age = age;
     if (age <= 18) {
         visitor->visitor_info.children_count = 0;
@@ -25,11 +26,13 @@ static void init_parameters(Visitor *visitor) {
         visitor->visitor_info.children_count = children_count;
         for (int i = 0; i < children_count; i++) {
             int max_child_age = MIN(7, age - 18);
-            visitor->visitor_info.children_ages[i] = rand() % (max_child_age + 1 - 1) + 1;
+            visitor->visitor_info.children_ages[i] = rand()
+                    % (max_child_age + 1 - VISITOR_MIN_AGE) + VISITOR_MIN_AGE;
         }
     }
 
-    if (visitor->visitor_info.age >= 75 || visitor->visitor_info.children_count > 0) {
+    if (visitor->visitor_info.age >= VISITOR_TRAIL_1_MAX_AGE
+            || visitor->visitor_info.children_count > 0) {
         visitor->visitor_info.trail_nr = 1;
     } else {
         visitor->visitor_info.trail_nr = rand() % 2;
@@ -104,7 +107,7 @@ static int move_through_catwalk(Visitor *visitor) {
     }
 
     // Spend time walking through the catwalk
-    usleep(visitor->shared_memory->parameters.K * 1000);
+    usleep(visitor->shared_memory->parameters.K * MILLISECONDS_IN_SECOND);
 
     for (int i = 0; i < 1 + visitor->visitor_info.children_count; i++) {
         if (write(visitor->shared_memory->catwalk_pipe[catwalk_number][1], buffer, person_space)
@@ -172,7 +175,8 @@ static int visitor_go(Visitor *visitor) {
     } else {
         logger_log(&visitor->logger, "Started the tour");
 
-        usleep(visitor->shared_memory->parameters.T[ticket_message.trail_nr] * 60 * 1000);
+        usleep(visitor->shared_memory->parameters.T[ticket_message.trail_nr] * SECONDS_IN_MINUTE
+                * MILLISECONDS_IN_SECOND);
 
         logger_log(&visitor->logger, "Finished the tour");
     }
@@ -202,7 +206,10 @@ VisitorRes visitor_run(Visitor *visitor) {
     if (visitor_go(visitor) == -1)
         return VISITOR_RUN_FAIL;
 
-    if (rand() % 10 == 0 && visitor->visitor_info.age < 75
+    // 10% of visitors want to go on the other trail on the same day
+    // However, only visitors younger than VISITOR_TRAIL_1_MAX_AGE
+    // and without children can go on trail 1
+    if (rand() % 10 == 0 && visitor->visitor_info.age < VISITOR_TRAIL_1_MAX_AGE
             && visitor->visitor_info.children_count == 0) {
         visitor->visitor_info.trail_nr = !visitor->visitor_info.trail_nr; // Pick the other trail
         visitor->visitor_info.second_tour = true;

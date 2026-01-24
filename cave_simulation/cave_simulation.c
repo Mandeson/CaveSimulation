@@ -172,7 +172,7 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     if (cave_simulation->simulation_running) {
         // Wait for all processes to attach their signal handlers
         while (cave_simulation->shared_memory->processes_starting > 0) {
-            usleep(1000);
+            usleep(MILLISECONDS_IN_SECOND);
         }
 
         if (interrupted) {
@@ -290,7 +290,7 @@ static void *child_wait_thread_function(void *arg) {
 }
 
 static int random_time_between_visitors(const SimulationParameters *parameters) {
-    int time = MAX((parameters->T[0] * 60 + parameters->T[1] * 60)
+    int time = MAX((parameters->T[0] * SECONDS_IN_MINUTE + parameters->T[1] * SECONDS_IN_MINUTE)
             / (parameters->N[0] + parameters->N[1]), 10);
     return rand() % (time * 2);
 }
@@ -396,7 +396,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
             }
         }
 
-        usleep(1000);
+        usleep(MILLISECONDS_IN_SECOND);
     } while (!cave_simulation->shared_memory->interrupted && cave_simulation->shared_memory->time
         < calculate_closing_time(&cave_simulation->shared_memory->parameters));
 

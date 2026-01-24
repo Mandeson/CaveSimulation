@@ -4,6 +4,10 @@
 #include "logger_interface.h"
 #include <stdbool.h>
 
+#define VISITOR_MIN_AGE 1
+#define VISITOR_MAX_AGE 80
+#define VISITOR_TRAIL_1_MAX_AGE 75
+
 typedef struct {
     VisitorInfo visitor_info;
 
