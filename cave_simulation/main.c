@@ -10,22 +10,22 @@ const SimulationParameters tests[TEST_COUNT] = {
     {
         .Tp = 10,
         .Tk = 18,
-        .N = {200, 400},
+        .N = {20, 40},
         .T = {60, 40},
         .K = 4
     },
     {
-        .Tp = 11,
+        .Tp = 15,
         .Tk = 18,
-        .N = {5, 5},
-        .T = {10, 10},
-        .K = 3
+        .N = {5, 54},
+        .T = {10, 30},
+        .K = 6
     },
     {
-        .Tp = 7,
+        .Tp = 5,
         .Tk = 18,
         .N = {50, 50},
-        .T = {10, 60},
+        .T = {30, 30},
         .K = 6
     },
     {
@@ -71,6 +71,8 @@ int main(int argsc, char *argv[]) {
     }
 
     for (int i = 0; i < TEST_COUNT; i++) {
+        memset(&cave_simulation, 0, sizeof(cave_simulation));
+        
         CaveSimulationRes res = cave_simulation_init(&cave_simulation, &tests[i], log_to_stdout,
                 skip_start_confirmation, disable_guard);
         if (res != CAVE_SIMULATION_SUCCESS)

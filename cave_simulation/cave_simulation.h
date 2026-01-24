@@ -7,7 +7,7 @@
 #include <stdatomic.h>
 #include <sys/ipc.h>
 
-#define MAX_PROCESSES 2000
+#define MAX_PROCESSES 500
 
 typedef struct {
     bool disable_guard;
