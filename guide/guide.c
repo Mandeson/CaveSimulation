@@ -223,7 +223,7 @@ GuideRes guide_run(Guide *guide) {
 
     guide->waiting_by_guide_semaphore = (guide->number == 1) ? WAITING_BY_GUIDE2_SEMAPHORE
             : WAITING_BY_GUIDE1_SEMAPHORE;
-    int timeout = (guide->shared_memory->parameters.T[guide->number]) * 60 / 10;
+    int timeout = (guide->shared_memory->parameters.T[guide->number]) * 60;
     int last_time = guide->shared_memory->time;
     do {
         if (greet_visitors(guide) || (guide->shared_memory->time

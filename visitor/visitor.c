@@ -28,6 +28,14 @@ static void init_parameters(Visitor *visitor) {
             visitor->visitor_info.children_ages[i] = rand() % (max_child_age + 1 - 1) + 1;
         }
     }
+
+    if (visitor->visitor_info.age >= 75 || visitor->visitor_info.children_count > 0) {
+        visitor->visitor_info.trail_nr = 1;
+    } else {
+        visitor->visitor_info.trail_nr = rand() % 2;
+    }
+
+    visitor->visitor_info.second_tour = false;
 }
 
 VisitorRes visitor_init(Visitor *visitor) {
@@ -117,18 +125,8 @@ static int move_through_catwalk(Visitor *visitor) {
     return 0;
 }
 
-VisitorRes visitor_run(Visitor *visitor) {
+static int visitor_go(Visitor *visitor) {
     pid_t pid = getpid();
-    logger_log(&visitor->logger, "Running visitor");
-    visitor->logger_initialized = true;
-
-    take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
-    visitor->shared_memory->regular_ticket_line_size++;
-    give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
-
-    take_semaphore(visitor->semaphores, TICKET_REGULAR_SEMAPHORE);
-
-    logger_log(&visitor->logger, "Entering the ticket office and requesting ticket");
 
     // Request ticket from TicketClerk
     VisitorMessage visitor_message;
@@ -136,18 +134,18 @@ VisitorRes visitor_run(Visitor *visitor) {
     visitor_message.visitor_info = visitor->visitor_info;
     if (message_queue_send(visitor->message_queue, visitor->shared_memory->ticket_clerk_pid,
             &visitor_message, sizeof(visitor_message), "visitor_run") == MESSAGE_QUEUE_SEND_FAIL)
-        return VISITOR_RUN_FAIL;
+        return -1;
 
     Message message = {0};
 
     // Receive the ticket
     if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run - ticket", true)
             == MESSAGE_QUEUE_RECEIVE_FAIL)
-        return VISITOR_RUN_FAIL;
+        return -1;
 
     if (strcmp(message.mtext, "no-tickets") == 0) {
         logger_log(&visitor->logger, "Received no tickets");
-        return VISITOR_RUN_FAIL;
+        return -1;
     }
 
     TicketMessage ticket_message;
@@ -159,15 +157,15 @@ VisitorRes visitor_run(Visitor *visitor) {
 
     if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run - catwalk", true)
             != MESSAGE_QUEUE_RECEIVE_SUCCESS)
-        return VISITOR_RUN_FAIL;
+        return -1;
     
     if (move_through_catwalk(visitor) == -1)
-        return VISITOR_RUN_FAIL;
+        return -1;
 
     // Wait for the guide to start the tour
     if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run - tour", true)
             != MESSAGE_QUEUE_RECEIVE_SUCCESS)
-        return VISITOR_RUN_FAIL;
+        return -1;
     
     if (strcmp(message.mtext, "tour-cancelled") == 0) {
         logger_log(&visitor->logger, "Tour cancelled");
@@ -180,11 +178,47 @@ VisitorRes visitor_run(Visitor *visitor) {
     }
 
     if (move_through_catwalk(visitor) == -1)
-        return VISITOR_RUN_FAIL;
+        return -1;
 
     if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run - catwalk (out)", true)
             != MESSAGE_QUEUE_RECEIVE_SUCCESS)
+        return -1;
+
+    return 0;
+}
+
+VisitorRes visitor_run(Visitor *visitor) {
+    logger_log(&visitor->logger, "Running visitor");
+    visitor->logger_initialized = true;
+
+    take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+    visitor->shared_memory->regular_ticket_line_size++;
+    give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+
+    take_semaphore(visitor->semaphores, TICKET_REGULAR_SEMAPHORE);
+
+    logger_log(&visitor->logger, "Entered the ticket office and is requesting a ticket");
+
+    if (visitor_go(visitor) == -1)
         return VISITOR_RUN_FAIL;
+
+    if (rand() % 10 == 0 && visitor->visitor_info.age < 75
+            && visitor->visitor_info.children_count == 0) {
+        visitor->visitor_info.trail_nr = !visitor->visitor_info.trail_nr; // Pick the other trail
+        visitor->visitor_info.second_tour = true;
+
+        take_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+        visitor->shared_memory->priority_ticket_line_size++;
+        give_semaphore(visitor->semaphores, SHARED_MEMORY_SEMAPHORE);
+
+        take_semaphore(visitor->semaphores, TICKET_PRIORITY_SEMAPHORE);
+
+        logger_log(&visitor->logger, "Decided to go on the other trail, entered the ticket "
+            "office again, skipping the line and is requesting a ticket");
+
+        if (visitor_go(visitor) == -1)
+            return VISITOR_RUN_FAIL;
+    }
 
     return VISITOR_SUCCESS;
 }

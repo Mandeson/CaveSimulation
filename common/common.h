@@ -84,7 +84,9 @@ typedef struct {
 typedef struct {
     int age;
     uint8_t children_count;
-    uint8_t children_ages[7];
+    uint8_t children_ages[2];
+    bool second_tour;
+    int trail_nr;
 } VisitorInfo;
 
 typedef struct {

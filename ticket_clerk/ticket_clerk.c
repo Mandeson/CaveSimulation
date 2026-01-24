@@ -102,20 +102,14 @@ static int ticket_clerk_add_visitor(TicketClerk *ticket_clerk, const VisitorMess
 }
 
 static void ticket_clerk_sell_tickets(TicketClerk *ticket_clerk, const VisitorMessage *request) {
-    uint8_t trail_nr;
     const VisitorInfo *info = &request->visitor_info;
-    if (info->age > 75 || info->children_count > 0) {
-        trail_nr = 1;
-    } else {
-        trail_nr = rand() % 2;
-    }
 
     logger_log(&ticket_clerk->logger,
             "%d %d", ticket_clerk->shared_memory->time,
             calculate_closing_time(&ticket_clerk->shared_memory->parameters));
     if (ticket_clerk->shared_memory->time
             < calculate_closing_time(&ticket_clerk->shared_memory->parameters)
-            && ticket_clerk_add_visitor(ticket_clerk, request, trail_nr) == 0) {
+            && ticket_clerk_add_visitor(ticket_clerk, request, info->trail_nr) == 0) {
         int cost = TICKET_COST;
         for (int i = 0; i < info->children_count; i++) {
             if (info->children_ages[i] >= 3)
@@ -123,8 +117,13 @@ static void ticket_clerk_sell_tickets(TicketClerk *ticket_clerk, const VisitorMe
         }
 
         TicketMessage ticket_message;
-        ticket_message.trail_nr = trail_nr;
-        ticket_message.cost = cost;
+        ticket_message.trail_nr = info->trail_nr;
+        
+        if (info->second_tour) {
+            ticket_message.cost = cost / 2; // 50% discount for second tour
+        } else {
+            ticket_message.cost = cost;
+        }
 
         message_queue_send(ticket_clerk->message_queue, request->pid, &ticket_message,
                 sizeof(ticket_message), "ticket_clerk_sell_tickets");
