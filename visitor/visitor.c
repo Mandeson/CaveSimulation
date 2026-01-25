@@ -11,10 +11,13 @@
 #include "logger_interface.h"
 #include "util/time.h"
 
-static void init_parameters(Visitor *visitor) {
+static int init_parameters(Visitor *visitor) {
     // Get time for random seed (microseconds)
     struct timeval time;
-    gettimeofday(&time, NULL);
+    if (gettimeofday(&time, NULL) == -1) {
+        perror("init_parameters: gettimeofday");
+        return -1;
+    }
     srand(time.tv_usec);
 
     int age = rand() % (VISITOR_MAX_AGE + 1 - VISITOR_MIN_AGE) + VISITOR_MIN_AGE;
@@ -39,10 +42,13 @@ static void init_parameters(Visitor *visitor) {
     }
 
     visitor->visitor_info.second_tour = false;
+
+    return 0;
 }
 
 VisitorRes visitor_init(Visitor *visitor) {
-    init_parameters(visitor);
+    if (init_parameters(visitor) == -1)
+        return VISITOR_INIT_FAIL;
 
     SharedMemory *shared_memory = attach_shared_memory();
     if (shared_memory == NULL)
@@ -107,7 +113,7 @@ static int move_through_catwalk(Visitor *visitor) {
     }
 
     // Spend time walking through the catwalk
-    usleep(visitor->shared_memory->parameters.K * MILLISECONDS_IN_SECOND);
+    safe_usleep(visitor->shared_memory->parameters.K * MILLISECONDS_IN_SECOND);
 
     for (int i = 0; i < 1 + visitor->visitor_info.children_count; i++) {
         if (write(visitor->shared_memory->catwalk_pipe[catwalk_number][1], buffer, person_space)
@@ -176,7 +182,7 @@ static int visitor_go(Visitor *visitor) {
     } else {
         logger_log(&visitor->logger, "Started the tour");
 
-        usleep(visitor->shared_memory->parameters.T[ticket_message.trail_nr] * SECONDS_IN_MINUTE
+        safe_usleep(visitor->shared_memory->parameters.T[ticket_message.trail_nr] * SECONDS_IN_MINUTE
                 * MILLISECONDS_IN_SECOND);
 
         logger_log(&visitor->logger,

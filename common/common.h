@@ -126,3 +126,4 @@ int message_queue_send_check_ovf(int message_queue, long type, const void *data,
 int message_queue_receive(int message_queue, long type, Message *message, const char *caller, bool block);
 void close_catwalk_pipe_input(const SharedMemory *shared_memory);
 void close_catwalk_pipe_output(const SharedMemory *shared_memory);
+void safe_usleep(long microseconds);

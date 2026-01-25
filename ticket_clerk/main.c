@@ -1,5 +1,6 @@
 #include "ticket_clerk.h"
 #include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 TicketClerk ticket_clerk;
@@ -7,8 +8,9 @@ TicketClerk ticket_clerk;
 void sigusr1_handler(int);
 
 int main(void) {
-    signal(SIGUSR1, sigusr1_handler);
-    signal(SIGINT, SIG_IGN);
+    if (signal(SIGUSR1, sigusr1_handler) == SIG_ERR
+            || signal(SIGINT, SIG_IGN) == SIG_ERR)
+        perror("main: signal");
 
     TicketClerkRes res = ticket_clerk_init(&ticket_clerk);
     if (res != TICKET_CLERK_SUCCESS)

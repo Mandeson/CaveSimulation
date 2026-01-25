@@ -56,7 +56,8 @@ int logger_init(Logger *logger, bool log_to_stdout) {
     snprintf(tmp, 256, "%s/%s/main.txt", log_directory, time_date);
 
     printf("Creating main log file: %s\n", tmp);
-    fflush(stdout);
+    if (fflush(stdout) != 0)
+        perror("logger_init: fflush");
     if (create_log_file(&logger->file_main, tmp) == -1)
         return -1;
 
@@ -72,13 +73,15 @@ int logger_init(Logger *logger, bool log_to_stdout) {
     if (create_log_file(&logger->file_visitor, tmp) == -1)
         return -1;
 
-    pthread_create(&logger->logger_thread, NULL, logger_thread_function, logger);
+    if (pthread_create(&logger->logger_thread, NULL, logger_thread_function, logger) != 0)
+        fprintf(stderr, "Error: logger_init: pthread_create\n");
 
     return 0;
 }
 
 void logger_destroy(Logger *logger) {
-    fflush(stdout);
+    if (fflush(stdout) != 0)
+        perror("logger_destroy: fflush");
 
     LogMessage message = {0};
     message.mtype = 1;
@@ -90,7 +93,8 @@ void logger_destroy(Logger *logger) {
             break;
         }
     }
-    pthread_join(logger->logger_thread, NULL);
+    if (pthread_join(logger->logger_thread, NULL) != 0)
+        fprintf(stderr, "Error: logger_destroy: pthread_join\n");
 
     logger_close_file_descriptors(logger);
 

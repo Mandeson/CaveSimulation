@@ -76,7 +76,10 @@ static int init_parameters(CaveSimulation *cave_simulation,
         return -1;
     }
     struct rlimit limit;
-    getrlimit(RLIMIT_NPROC, &limit);
+    if (getrlimit(RLIMIT_NPROC, &limit) == -1) {
+        perror("init_parameters: getrlimit");
+        return -1;
+    }
     int processes_limit = limit.rlim_cur;
 
     if (parameters->N[0] <= 0 || parameters->N[0] >= processes_limit / 4) {
@@ -112,13 +115,19 @@ static int init_parameters(CaveSimulation *cave_simulation,
 CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
         const SimulationParameters *parameters, bool log_to_stdout,
         bool skip_start_confirmation, bool disable_guard) {
-    signal(SIGUSR1, SIG_IGN);
+    if (signal(SIGUSR1, SIG_IGN) == SIG_ERR) {
+        perror("cave_simulation_init: signal");
+        return CAVE_SIMULATION_INIT_FAIL;
+    }
 
     cave_simulation->disable_guard = disable_guard;
 
     // Get time for random seed (microseconds)
     struct timeval time;
-    gettimeofday(&time, NULL);
+    if (gettimeofday(&time, NULL) == -1) {
+        perror("cave_simulation_init: gettimeofday");
+        return CAVE_SIMULATION_INIT_FAIL;
+    }
     srand(time.tv_usec);
 
     int shared_memory = create_shared_memory(&cave_simulation->shared_memory);
@@ -147,7 +156,8 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
 
     if (!skip_start_confirmation) {
         printf("Press enter to start the simulation ");
-        fflush(stdout);
+        if (fflush(stdout) != 0)
+            perror("cave_simulation_init: fflush");
 
         char c;
         if (read(0, &c, 1) == -1 && errno != EINTR) {
@@ -208,16 +218,18 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     if (cave_simulation->simulation_running) {
         // Wait for all processes to attach their signal handlers
         while (cave_simulation->shared_memory->processes_starting > 0) {
-            usleep(MILLISECONDS_IN_SECOND);
+            safe_usleep(MILLISECONDS_IN_SECOND);
         }
 
         if (interrupted) {
             // Send SIGUSR1 to all child processes
-            kill(0, SIGUSR1);
+            if (kill(0, SIGUSR1) == -1)
+                perror("cave_simulation_destroy: kill (interruption)");
         }
 
         if (!interrupted && !cave_simulation->disable_guard && cave_simulation->guard_pid != 0)
-            kill(cave_simulation->guard_pid, SIGUSR1);
+            if (kill(cave_simulation->guard_pid, SIGUSR1) == -1)
+                perror("cave_simulation_destroy: kill (guard)");
 
         // If the simulation wasn't interrupted, wait only for visitors
         int leave_processes = 0;
@@ -226,9 +238,7 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
         logger_log(&cave_simulation->logger_interface, "Waiting for visitors to finish");
         while (cave_simulation->child_processes - cave_simulation->child_processes_finished
                 > leave_processes) {
-            usleep(10000);
-            logger_log(&cave_simulation->logger_interface, "Processes: %d Finished: %d", cave_simulation->child_processes,
-                    cave_simulation->child_processes_finished);
+            safe_usleep(10000);
         }
 
         logger_log(&cave_simulation->logger_interface, "Finished destroying visitors");
@@ -253,9 +263,7 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
 
         // Wait for ticket clerk and guides (if not interrupted)
         while (cave_simulation->child_processes > cave_simulation->child_processes_finished) {
-            usleep(10000);
-            logger_log(&cave_simulation->logger_interface, "Processes: %d Finished: %d", cave_simulation->child_processes,
-                    cave_simulation->child_processes_finished);
+            safe_usleep(10000);
         }
         logger_log(&cave_simulation->logger_interface, "Total number of child processes run: %d. Finished: %d",
                 cave_simulation->child_processes, cave_simulation->child_processes_finished);
@@ -297,7 +305,8 @@ static int spawn_guide(CaveSimulation *cave_simulation) {
         return -1;
     }
     if (fork_res == 0) {
-        signal(SIGINT, SIG_IGN);
+        if (signal(SIGINT, SIG_IGN) == SIG_ERR)
+            perror("spawn_guide: signal");
 
         logger_close_file_descriptors(&cave_simulation->logger);
         
@@ -348,8 +357,10 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     logger_log(&cave_simulation->logger_interface,
             "Running cave simulation (PID: %d)", getpid());
 
-    setpgid(0, 0);
-    signal(SIGUSR1, SIG_IGN);
+    if (setpgid(0, 0) == -1)
+        perror("cave_simulation_run: setpgid");
+    if (signal(SIGUSR1, SIG_IGN) == SIG_ERR)
+        perror("cave_simulation_run: signal");
 
     int fork_res = fork();
     if (fork_res == -1) {
@@ -357,7 +368,8 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         return CAVE_SIMULATION_RUN_FAIL;
     }
     if (fork_res == 0) {
-        signal(SIGINT, SIG_IGN);
+        if (signal(SIGINT, SIG_IGN) == SIG_ERR)
+            perror("cave_simulation_run: signal");
 
         logger_close_file_descriptors(&cave_simulation->logger);
 
@@ -395,7 +407,8 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
             return -1;
         }
         if (fork_res == 0) {
-            signal(SIGINT, SIG_IGN);
+            if (signal(SIGINT, SIG_IGN) == SIG_ERR)
+                perror("cave_simulation_run: signal");
 
             logger_close_file_descriptors(&cave_simulation->logger);
 
@@ -431,7 +444,8 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
                     return CAVE_SIMULATION_RUN_FAIL;
                 }
                 if (fork_res == 0) {
-                    signal(SIGINT, SIG_IGN);
+                    if (signal(SIGINT, SIG_IGN) == SIG_ERR)
+                        perror("cave_simulation_run: signal");
 
                     logger_close_file_descriptors(&cave_simulation->logger);
 
@@ -448,7 +462,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
             }
         }
 
-        usleep(MILLISECONDS_IN_SECOND);
+        safe_usleep(MILLISECONDS_IN_SECOND);
     } while (!cave_simulation->shared_memory->interrupted && cave_simulation->shared_memory->time
         < calculate_closing_time(&cave_simulation->shared_memory->parameters));
 

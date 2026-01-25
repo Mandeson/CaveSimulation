@@ -1,5 +1,6 @@
 #include "guide.h"
 #include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 Guide guide;
@@ -9,9 +10,10 @@ void sigusr1_handler(int);
 void sigusr2_handler(int);
 
 int main(void) {
-    signal(SIGUSR1, sigusr1_handler);
-    signal(SIGUSR2, sigusr2_handler);
-    signal(SIGINT, SIG_IGN);
+    if (signal(SIGUSR1, sigusr1_handler) == SIG_ERR
+            || signal(SIGUSR2, sigusr2_handler) == SIG_ERR
+            || signal(SIGINT, SIG_IGN) == SIG_ERR)
+        perror("main: signal");
 
     GuideRes res = guide_init(&guide);
     if (res != GUIDE_SUCCESS)

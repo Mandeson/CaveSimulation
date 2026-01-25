@@ -36,13 +36,9 @@ SharedMemory *attach_shared_memory() {
 int detach_shared_memory(SharedMemory **shared_memory) {
     SharedMemory *ptr = *shared_memory;
     *shared_memory = NULL;
-    int res = shmdt((void *)ptr);
-    if (res == -1) {
+    if (shmdt((void *)ptr) == -1)
         perror("detach_shared_memory: shmdt");
-        fprintf(stderr, "detach_shared_memory: error ptr: %ld PID: %d\n", (long)ptr, getpid());
-        fflush(stderr);
-    }
-    return res;
+    return 0;
 }
 
 int get_message_queue(int id) {
@@ -152,7 +148,7 @@ int message_queue_send_check_ovf(int message_queue, long type, const void *data,
         if (buf.msg_cbytes + MESSAGE_QUEUE_MARGIN * sizeof(message.mtext) <= buf.msg_qbytes)
             break;
 
-        usleep(100);
+        safe_usleep(100);
     }
 
     return message_queue_send(message_queue, type, data, size, "message_queue_send_check_ovf");
@@ -194,3 +190,11 @@ void close_catwalk_pipe_output(const SharedMemory *shared_memory) {
     if (close(shared_memory->catwalk_pipe[1][0]) == -1)
         perror("close_catwalk_pipe_output: close (Catwalk2)");
 }
+
+void safe_usleep(long microseconds) {
+    while (usleep(microseconds) == -1) {
+        if (errno != EINTR)
+            perror("safe_usleep: usleep");
+    }
+}
+

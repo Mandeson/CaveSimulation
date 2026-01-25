@@ -90,7 +90,7 @@ static int receive_message(Guide *guide) {
 
 static void lead_visitors_through_catwalk(Guide *guide) {
     // Go through the catwalk
-    usleep(guide->shared_memory->parameters.K * MILLISECONDS_IN_SECOND);
+    safe_usleep(guide->shared_memory->parameters.K * MILLISECONDS_IN_SECOND);
 
     size_t person_space = PIPE_BUF / guide->shared_memory->parameters.K;
     void *buffer = malloc(person_space);
@@ -101,7 +101,7 @@ static void lead_visitors_through_catwalk(Guide *guide) {
 
     int visitors_collected = 0;
     while (visitors_collected < guide->trail_visitors_count) {
-        usleep(MILLISECONDS_IN_SECOND);
+        safe_usleep(MILLISECONDS_IN_SECOND);
 
         int catwalk_visitors[2] = {guide->shared_memory->catwalk_visitors[0],
                 guide->shared_memory->catwalk_visitors[1]};
@@ -148,7 +148,7 @@ static void guide_tour(Guide *guide) {
         }
 
         // Lead the tour
-        usleep(guide->shared_memory->parameters.T[guide->number] * SECONDS_IN_MINUTE
+        safe_usleep(guide->shared_memory->parameters.T[guide->number] * SECONDS_IN_MINUTE
                 * MILLISECONDS_IN_SECOND);
 
         logger_log(&guide->logger, "Ending the tour");
@@ -235,7 +235,7 @@ GuideRes guide_run(Guide *guide) {
             last_time = guide->shared_memory->time;
         }
 
-        while (usleep(MILLISECONDS_IN_SECOND) == -1) {}
+        safe_usleep(MILLISECONDS_IN_SECOND);
 
         int res;
         do {

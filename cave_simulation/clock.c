@@ -1,6 +1,7 @@
 #include "clock.h"
 #include "util/time.h"
 #include <stdbool.h>
+#include <stdio.h>
 #include <sys/time.h>
 #include <unistd.h>
 
@@ -8,12 +9,18 @@ static void *clock_thread(void *arg) {
     Clock *clock = (Clock *)arg;
 
     struct timeval last_time;
-    gettimeofday(&last_time, NULL);
+    if (gettimeofday(&last_time, NULL) == -1) {
+        perror("clock_thread: gettimeofday");
+        return NULL;
+    }
 
     while (!clock->terminate) {
-        usleep(MILLISECONDS_IN_SECOND);
+        safe_usleep(MILLISECONDS_IN_SECOND);
         struct timeval time;
-        gettimeofday(&time, NULL);
+        if (gettimeofday(&time, NULL) == -1) {
+            perror("clock_thread: gettimeofday");
+            return NULL;
+        }
 
         struct timeval diff;
         timersub(&time, &last_time, &diff);
@@ -29,12 +36,14 @@ static void *clock_thread(void *arg) {
 void clock_init(Clock *clock, SharedMemory *shared_memory) {
     clock->shared_memory = shared_memory;
     clock->terminate = false;
-    pthread_create(&clock->thread, NULL, clock_thread, clock);
+    if (pthread_create(&clock->thread, NULL, clock_thread, clock) != 0)
+        fprintf(stderr, "Error: clock_init: pthread_create\n");
 }
 
 void clock_destroy(Clock *clock) {
     clock->terminate = true;
-    pthread_join(clock->thread, NULL);
+    if (pthread_join(clock->thread, NULL) != 0)
+        fprintf(stderr, "Error: clock_destroy: pthread_join\n");
 }
 
 

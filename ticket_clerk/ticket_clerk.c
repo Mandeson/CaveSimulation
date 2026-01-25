@@ -3,6 +3,7 @@
 #include "util/time.h"
 #include <linux/limits.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ipc.h>
@@ -14,7 +15,10 @@
 TicketClerkRes ticket_clerk_init(TicketClerk *ticket_clerk) {
     // Get time for random seed (microseconds)
     struct timeval time;
-    gettimeofday(&time, NULL);
+    if (gettimeofday(&time, NULL) == -1) {
+        perror("ticket_clerk_init: gettimeofday");
+        return TICKET_CLERK_INIT_FAIL;
+    }
     srand(time.tv_usec);
 
     SharedMemory *shared_memory = attach_shared_memory();
@@ -154,7 +158,7 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
     do {
         if (ticket_clerk->shared_memory->time
             < calculate_closing_time(&ticket_clerk->shared_memory->parameters)) {
-            usleep(TICKET_CLERK_DELAY * MILLISECONDS_IN_SECOND);
+            safe_usleep(TICKET_CLERK_DELAY * MILLISECONDS_IN_SECOND);
         }
         
         int res;

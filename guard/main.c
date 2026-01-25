@@ -9,8 +9,9 @@ SharedMemory *shared_memory;
 void sigusr1_handler(int);
 
 int main(void) {
-    signal(SIGUSR1, sigusr1_handler);
-    signal(SIGINT, SIG_IGN);
+    if (signal(SIGUSR1, sigusr1_handler) == SIG_ERR
+            || signal(SIGINT, SIG_IGN) == SIG_ERR)
+        perror("Guard main: signal");
 
     shared_memory = attach_shared_memory();
     if (shared_memory == NULL)
@@ -26,10 +27,12 @@ int main(void) {
         read(0, &c, 1);
         if (c == '1') {
             printf("Guard: Sending signal to Guide 1\n");
-            kill(shared_memory->guide1_pid, SIGUSR2);
+            if (kill(shared_memory->guide1_pid, SIGUSR2) == -1)
+                perror("Guard main: kill");
         } else if (c == '2') {
             printf("Guard: Sending signal to Guide 2\n");
-            kill(shared_memory->guide2_pid, SIGUSR2);
+            if (kill(shared_memory->guide2_pid, SIGUSR2) == -1)
+                perror("Guard main: kill");
         }
     }
 

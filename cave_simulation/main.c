@@ -47,9 +47,11 @@ int main(int argsc, char *argv[]) {
     memset(&psa, 0, sizeof(psa));
     psa.sa_handler = sigint_handler;
     psa.sa_flags = 0; // Do not restart system calls
-    sigaction(SIGINT, &psa, NULL);
+    if (sigaction(SIGINT, &psa, NULL) == -1)
+        perror("main: sigaction");
 
-    signal(SIGUSR1, SIG_IGN);
+    if (signal(SIGUSR1, SIG_IGN) == SIG_ERR)
+        perror("main: signal");
 
     bool log_to_stdout = false;
     bool skip_start_confirmation = false;

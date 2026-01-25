@@ -1,5 +1,6 @@
 #include "visitor.h"
 #include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 Visitor visitor;
@@ -7,8 +8,9 @@ Visitor visitor;
 void sigusr1_handler(int);
 
 int main(void) {
-    signal(SIGUSR1, sigusr1_handler);
-    signal(SIGPIPE, SIG_IGN);
+    if (signal(SIGUSR1, sigusr1_handler) == SIG_ERR
+            || signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+        perror("main: signal");
 
     VisitorRes res = visitor_init(&visitor);
     if (res != VISITOR_SUCCESS)
