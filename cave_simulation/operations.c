@@ -78,7 +78,7 @@ int create_semaphores() {
         return -1;
     }
 
-    int semaphores = semget(semaphore_key, NSEMAPHORES, IPC_CREAT | IPC_EXCL | 0600);
+    int semaphores = semget(semaphore_key, NSEMAPHORES, IPC_CREAT | IPC_EXCL | 0200);
     if (semaphores == -1)
         perror("create_semaphores: semget");
 
