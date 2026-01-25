@@ -96,7 +96,7 @@ static int move_through_catwalk(Visitor *visitor) {
     visitor->shared_memory->catwalk_visitors[catwalk_number]
             += 1 + visitor->visitor_info.children_count;
 
-    logger_log(&visitor->logger, "Entering the catwalk %d with %d children",
+    logger_log(&visitor->logger, "Trying to enter the catwalk %d with %d children",
             catwalk_number + 1, visitor->visitor_info.children_count);
 
     size_t person_space = PIPE_BUF / visitor->shared_memory->parameters.K;
@@ -147,7 +147,8 @@ static int visitor_go(Visitor *visitor) {
         return -1;
 
     if (strcmp(message.mtext, "no-tickets") == 0) {
-        logger_log(&visitor->logger, "Received no tickets");
+        logger_log(&visitor->logger, "Did not manage to get a ticket, "
+                "because the ticket office is closing");
         return -1;
     }
 
@@ -171,21 +172,22 @@ static int visitor_go(Visitor *visitor) {
         return -1;
     
     if (strcmp(message.mtext, "tour-cancelled") == 0) {
-        logger_log(&visitor->logger, "Tour cancelled");
+        logger_log(&visitor->logger, "Tour cancelled, approaching the catwalk to exit the cave");
     } else {
         logger_log(&visitor->logger, "Started the tour");
 
         usleep(visitor->shared_memory->parameters.T[ticket_message.trail_nr] * SECONDS_IN_MINUTE
                 * MILLISECONDS_IN_SECOND);
 
-        logger_log(&visitor->logger, "Finished the tour");
+        logger_log(&visitor->logger,
+                "Finished the tour, now approaching the catwalk to exit the cave");
     }
 
     if (move_through_catwalk(visitor) == -1)
         return -1;
 
-    if (message_queue_receive(visitor->message_queue, pid, &message, "visitor_run - catwalk (out)", true)
-            != MESSAGE_QUEUE_RECEIVE_SUCCESS)
+    if (message_queue_receive(visitor->message_queue, pid, &message,
+            "visitor_run - catwalk (out)", true) != MESSAGE_QUEUE_RECEIVE_SUCCESS)
         return -1;
 
     return 0;

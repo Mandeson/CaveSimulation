@@ -153,9 +153,6 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     cave_simulation->shared_memory->terminating = true;
 
     bool interrupted = cave_simulation->shared_memory->interrupted;
-
-    logger_log(&cave_simulation->logger_interface, "Started destroying");
-
     bool error = false;
 
     if (cave_simulation->simulation_running) {
