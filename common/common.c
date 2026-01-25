@@ -139,6 +139,25 @@ int message_queue_send(int message_queue, long type, const void *data, size_t si
     return MESSAGE_QUEUE_SEND_SUCCESS;
 }
 
+// Prevents message queue overflow
+int message_queue_send_check_ovf(int message_queue, long type, const void *data, size_t size) {
+    while (1) {
+        struct msqid_ds buf;
+        if (msgctl(message_queue, IPC_STAT, &buf) == -1) {
+            perror("message_queue_send_margin: msgctl");
+            return MESSAGE_QUEUE_SEND_FAIL;
+        }
+
+        Message message;
+        if (buf.msg_cbytes + MESSAGE_QUEUE_MARGIN * sizeof(message.mtext) <= buf.msg_qbytes)
+            break;
+
+        usleep(100);
+    }
+
+    return message_queue_send(message_queue, type, data, size, "message_queue_send_check_ovf");
+}
+
 int message_queue_receive(int message_queue, long type, Message *message, const char *caller, bool block) {
     int res;
     while ((res = msgrcv(message_queue, message, sizeof(message->mtext), type, block ? 0 : IPC_NOWAIT)) == -1) {

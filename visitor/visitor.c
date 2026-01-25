@@ -135,8 +135,8 @@ static int visitor_go(Visitor *visitor) {
     VisitorMessage visitor_message;
     visitor_message.pid = pid;
     visitor_message.visitor_info = visitor->visitor_info;
-    if (message_queue_send(visitor->message_queue, visitor->shared_memory->ticket_clerk_pid,
-            &visitor_message, sizeof(visitor_message), "visitor_run") == MESSAGE_QUEUE_SEND_FAIL)
+    if (message_queue_send_check_ovf(visitor->message_queue, visitor->shared_memory->ticket_clerk_pid,
+            &visitor_message, sizeof(visitor_message)) == MESSAGE_QUEUE_SEND_FAIL)
         return -1;
 
     Message message = {0};

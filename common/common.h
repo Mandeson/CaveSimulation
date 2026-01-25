@@ -29,6 +29,8 @@
 #define MESSAGE_QUEUE_RECEIVE_SUCCESS 0
 #define MESSAGE_QUEUE_RECEIVE_FAIL -1
 
+#define MESSAGE_QUEUE_MARGIN 8
+
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
@@ -117,6 +119,7 @@ int get_semaphores();
 int take_semaphore(int semaphores, int number);
 int give_semaphore(int semaphores, int number);
 int message_queue_send(int message_queue, long type, const void *data, size_t size, const char *caller);
+int message_queue_send_check_ovf(int message_queue, long type, const void *data, size_t size);
 int message_queue_receive(int message_queue, long type, Message *message, const char *caller, bool block);
 void close_catwalk_pipe_input(const SharedMemory *shared_memory);
 void close_catwalk_pipe_output(const SharedMemory *shared_memory);
