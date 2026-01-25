@@ -77,34 +77,13 @@ int take_semaphore(int semaphores, int number) {
     struct sembuf op;
     op.sem_num = number;
     op.sem_op = -1;
-    op.sem_flg = 0;//SEM_UNDO;
+    op.sem_flg = 0;
 
     while (semop(semaphores, &op, 1) == -1) {
         if (errno != EINTR) {
             perror("take_semaphore: semop");
             return -1;
         }
-    }
-
-    // if (number == SHARED_MEMORY_SEMAPHORE) {
-    //     take_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
-    //     printf("PID: %d takes shm semaphore\n", getpid());
-    //     fflush(stdout);
-    //     give_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
-    // }
-
-    return 0;
-}
-
-int take_semaphore_n(int semaphores, int number, int n) {
-    struct sembuf op;
-    op.sem_num = number;
-    op.sem_op = -n;
-    op.sem_flg = 0;
-
-    if (semop(semaphores, &op, 1) == -1) {
-        perror("take_semaphore_n: semop");
-        return -1;
     }
 
     return 0;
@@ -114,45 +93,11 @@ int give_semaphore(int semaphores, int number) {
     struct sembuf op;
     op.sem_num = number;
     op.sem_op = 1;
-    op.sem_flg = 0;//SEM_UNDO;
-
-    // if (number == SHARED_MEMORY_SEMAPHORE) {
-    //     take_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
-    //     printf("PID: %d gives shm semaphore\n", getpid());
-    //     fflush(stdout);
-    //     give_semaphore(semaphores, OUTPUT_LOG_SEMAPHORE);
-    // }
+    op.sem_flg = 0;
 
     while (semop(semaphores, &op, 1) == -1) {
         if (errno != EINTR) {
             perror("give_semaphore: semop");
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-int give_semaphore_n(int semaphores, int number, int n) {
-    struct sembuf op;
-    op.sem_num = number;
-    op.sem_op = n;
-    op.sem_flg = 0;
-
-    if (semop(semaphores, &op, 1) == -1) {
-        perror("give_semaphore_n: semop");
-        return -1;
-    }
-
-    return 0;
-}
-
-int set_semaphore(int semaphores, int number, int n) {
-    while (semctl(semaphores, number, SETVAL, n) == -1) {
-        if (errno != EINTR) {
-            char error[64];
-            snprintf(error, sizeof(error) - 1, "set_semaphore: semctl");
-            perror(error);
             return -1;
         }
     }
@@ -213,4 +158,20 @@ int message_queue_receive(int message_queue, long type, Message *message, const 
     }
 
     return MESSAGE_QUEUE_RECEIVE_SUCCESS;
+}
+
+void close_catwalk_pipe_input(const SharedMemory *shared_memory) {
+    if (close(shared_memory->catwalk_pipe[0][1]) == -1)
+        perror("close_catwalk_pipe_input: close (Catwalk1)");
+
+    if (close(shared_memory->catwalk_pipe[1][1]) == -1)
+        perror("close_catwalk_pipe_input: close (Catwalk2)");
+}
+
+void close_catwalk_pipe_output(const SharedMemory *shared_memory) {
+    if (close(shared_memory->catwalk_pipe[0][0]) == -1)
+        perror("close_catwalk_pipe_output: close (Catwalk1)");
+
+    if (close(shared_memory->catwalk_pipe[1][0]) == -1)
+        perror("close_catwalk_pipe_output: close (Catwalk2)");
 }

@@ -92,6 +92,12 @@ void logger_destroy(Logger *logger) {
     }
     pthread_join(logger->logger_thread, NULL);
 
+    logger_close_file_descriptors(logger);
+
+    destroy_message_queue(logger->message_queue);
+}
+
+void logger_close_file_descriptors(Logger *logger) {
     if (close(logger->file_main) == -1)
         perror("logger_destroy: close main.txt");
 
@@ -103,8 +109,6 @@ void logger_destroy(Logger *logger) {
 
     if (close(logger->file_visitor) == -1)
         perror("logger_destroy: close Visitor.txt");
-
-    destroy_message_queue(logger->message_queue);
 }
 
 // Returns true if the message was issued by program 'prog'

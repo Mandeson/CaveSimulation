@@ -24,4 +24,5 @@ typedef struct {
 
 int logger_init(Logger *logger, bool log_to_stdout);
 void logger_destroy(Logger *logger);
+void logger_close_file_descriptors(Logger *logger);
 void* logger_thread_function(void *arg);

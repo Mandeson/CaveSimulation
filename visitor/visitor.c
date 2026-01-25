@@ -81,11 +81,11 @@ VisitorRes visitor_init(Visitor *visitor) {
 }
 
 VisitorRes visitor_destroy(Visitor *visitor) {
-    // if (visitor->logger_initialized)
-    //     logger_log(&visitor->logger, "Destroying");
-
-    if (visitor->shared_memory != NULL && detach_shared_memory(&visitor->shared_memory) == -1)
-        return VISITOR_DESTROY_FAIL;
+    if (visitor->shared_memory != NULL) {
+        close_catwalk_pipe_input(visitor->shared_memory);
+        if (detach_shared_memory(&visitor->shared_memory) == -1)
+            return VISITOR_DESTROY_FAIL;
+    }
 
     return VISITOR_SUCCESS;
 }

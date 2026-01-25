@@ -149,22 +149,6 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
     return CAVE_SIMULATION_SUCCESS;
 }
 
-static void close_catwalk_pipe_input(const SharedMemory *shared_memory) {
-    if (close(shared_memory->catwalk_pipe[0][1]) == -1)
-        perror("close_catwalk_pipe_input: close (Catwalk1)");
-
-    if (close(shared_memory->catwalk_pipe[1][1]) == -1)
-        perror("close_catwalk_pipe_input: close (Catwalk2)");
-}
-
-static void close_catwalk_pipe_output(const SharedMemory *shared_memory) {
-    if (close(shared_memory->catwalk_pipe[0][0]) == -1)
-        perror("close_catwalk_pipe_output: close (Catwalk1)");
-
-    if (close(shared_memory->catwalk_pipe[1][0]) == -1)
-        perror("close_catwalk_pipe_output: close (Catwalk2)");
-}
-
 CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
     cave_simulation->shared_memory->terminating = true;
 
@@ -268,6 +252,9 @@ static int spawn_guide(CaveSimulation *cave_simulation) {
     if (fork_res == 0) {
         signal(SIGINT, SIG_IGN);
 
+        logger_close_file_descriptors(&cave_simulation->logger);
+        
+        // Guide doesn't need the pipe input
         close_catwalk_pipe_input(cave_simulation->shared_memory);
 
         if (execl("./Guide", "Guide", NULL) == -1) {
@@ -319,6 +306,9 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     if (fork_res == 0) {
         signal(SIGINT, SIG_IGN);
 
+        logger_close_file_descriptors(&cave_simulation->logger);
+
+        // Ticket clerk doesn't need the pipes
         close_catwalk_pipe_input(cave_simulation->shared_memory);
         close_catwalk_pipe_output(cave_simulation->shared_memory);
 
@@ -354,6 +344,9 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
         if (fork_res == 0) {
             signal(SIGINT, SIG_IGN);
 
+            logger_close_file_descriptors(&cave_simulation->logger);
+
+            // Guide doesn't need the pipes
             close_catwalk_pipe_input(cave_simulation->shared_memory);
             close_catwalk_pipe_output(cave_simulation->shared_memory);
 
@@ -388,6 +381,9 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
                 if (fork_res == 0) {
                     signal(SIGINT, SIG_IGN);
 
+                    logger_close_file_descriptors(&cave_simulation->logger);
+
+                    // Visitor doesn't need the pipe output
                     close_catwalk_pipe_output(cave_simulation->shared_memory);
 
                     if (execl("./Visitor", "Visitor", NULL) == -1) {

@@ -58,16 +58,14 @@ GuideRes guide_init(Guide *guide) {
 }
 
 GuideRes guide_destroy(Guide *guide) {
-    // if (guide->logger_initialized)
-    //     logger_log(&guide->logger,
-    //             "Guide (PID: %d) destroying", getpid());
-
     if (guide->trail_visitors_initialized)
         array_destroy(&guide->trail_visitors);
 
-    if (guide->shared_memory != NULL
-            && detach_shared_memory(&guide->shared_memory) == -1)
-        return GUIDE_DESTROY_FAIL;
+    if (guide->shared_memory != NULL) {
+        close_catwalk_pipe_output(guide->shared_memory);
+        if (detach_shared_memory(&guide->shared_memory) == -1)
+            return GUIDE_DESTROY_FAIL;
+    }
 
     return GUIDE_SUCCESS;
 }
