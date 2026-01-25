@@ -57,10 +57,51 @@ static int init_semaphores(int semaphores) {
     return 0;
 }
 
-static void init_parameters(CaveSimulation *cave_simulation,
+static int init_parameters(CaveSimulation *cave_simulation,
         const SimulationParameters *parameters) {
-    // TODO: Check if parameters are valid
+    if (parameters->Tp <= 0 || parameters->Tp > 23) {
+        logger_log(&cave_simulation->logger_interface,
+                "Invalid starting time parameter (Tp): %d", parameters->Tp);
+        return -1;
+    }
+    if (parameters->Tk <= 0 || parameters->Tk > 23) {
+        logger_log(&cave_simulation->logger_interface,
+                "Invalid ending time parameter (Tk): %d", parameters->Tk);
+        return -1;
+    }
+    if (parameters->Tk <= parameters->Tp) {
+        logger_log(&cave_simulation->logger_interface,
+                "Invalid cave open duration (Tp - Tk): %d - %d", parameters->Tp, parameters->Tk);
+        return -1;
+    }
+    if (parameters->N[0] <= 0 || parameters->N[0] >= MAX_PROCESSES / 4) {
+        logger_log(&cave_simulation->logger_interface,
+                "Invalid visitor number (N1): %d", parameters->N[0]);
+        return -1;
+    }
+    if (parameters->N[1] <= 0 || parameters->N[1] >= MAX_PROCESSES / 4) {
+        logger_log(&cave_simulation->logger_interface,
+                "Invalid visitor number (N2): %d", parameters->N[1]);
+        return -1;
+    }
+    if (parameters->T[0] <= 0 || parameters->T[0] > 60) {
+        logger_log(&cave_simulation->logger_interface,
+                "Invalid tour time (T1): %d", parameters->T[0]);
+        return -1;
+    }
+    if (parameters->T[1] <= 0 || parameters->T[1] > 60) {
+        logger_log(&cave_simulation->logger_interface,
+                "Invalid tour time (T2): %d", parameters->T[1]);
+        return -1;
+    }
+    if (parameters->K <= 0 || parameters->K >= PIPE_BUF / (int)sizeof(VisitorInfo)) {
+        logger_log(&cave_simulation->logger_interface,
+                "Invalid catwalk capacity (K): %d", parameters->K);
+        return -1;
+    }
+
     cave_simulation->shared_memory->parameters = *parameters;
+    return 0;
 }
 
 CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
@@ -89,7 +130,11 @@ CaveSimulationRes cave_simulation_init(CaveSimulation *cave_simulation,
     logger_interface_new(&cave_simulation->logger_interface, "CaveSimulation",
             cave_simulation->shared_memory);
 
-    init_parameters(cave_simulation, parameters);
+    if (init_parameters(cave_simulation, parameters) == -1) {
+        logger_destroy(&cave_simulation->logger);
+        destroy_shared_memory(&cave_simulation->shared_memory, shared_memory);
+        return CAVE_SIMULATION_INIT_FAIL;
+    }
 
     if (!log_to_stdout)
         printf("CaveSimulation: running in silent mode. Use --log-to-stdout "
