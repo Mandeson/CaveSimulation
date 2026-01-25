@@ -13,6 +13,7 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <sys/resource.h>
 
 #include "common.h"
 #include "logger.h"
@@ -74,12 +75,16 @@ static int init_parameters(CaveSimulation *cave_simulation,
                 "Invalid cave open duration (Tp - Tk): %d - %d", parameters->Tp, parameters->Tk);
         return -1;
     }
-    if (parameters->N[0] <= 0 || parameters->N[0] >= MAX_PROCESSES / 4) {
+    struct rlimit limit;
+    getrlimit(RLIMIT_NPROC, &limit);
+    int processes_limit = limit.rlim_cur;
+
+    if (parameters->N[0] <= 0 || parameters->N[0] >= processes_limit / 4) {
         logger_log(&cave_simulation->logger_interface,
                 "Invalid visitor number (N1): %d", parameters->N[0]);
         return -1;
     }
-    if (parameters->N[1] <= 0 || parameters->N[1] >= MAX_PROCESSES / 4) {
+    if (parameters->N[1] <= 0 || parameters->N[1] >= processes_limit / 4) {
         logger_log(&cave_simulation->logger_interface,
                 "Invalid visitor number (N2): %d", parameters->N[1]);
         return -1;
@@ -324,8 +329,14 @@ static void *child_wait_thread_function(void *arg) {
 
 static int random_time_between_visitors(const SimulationParameters *parameters) {
     int time = MAX((parameters->T[0] * SECONDS_IN_MINUTE + parameters->T[1] * SECONDS_IN_MINUTE)
-            / (parameters->N[0] + parameters->N[1]), 10);
+            / (parameters->N[0] + parameters->N[1]), TICKET_CLERK_DELAY);
     return rand() % (time * 2);
+}
+
+static int get_ticket_office_line_size(CaveSimulation *cave_simulation) {
+    return cave_simulation->child_processes - cave_simulation->child_processes_finished
+            - cave_simulation->shared_memory->parameters.N[0]
+            - cave_simulation->shared_memory->parameters.N[1];
 }
 
 CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {    
@@ -413,8 +424,7 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
             to_next_visitor = random_time_between_visitors(
                     &cave_simulation->shared_memory->parameters);
 
-            if (cave_simulation->child_processes - cave_simulation->child_processes_finished + 1
-                < MAX_PROCESSES) {
+            if (get_ticket_office_line_size(cave_simulation) + 1 < TICKET_OFFICE_LINE_SIZE) {
                 fork_res = fork();
                 if (fork_res == -1) {
                     perror("cave_simulation_run: fork (Visitor)");

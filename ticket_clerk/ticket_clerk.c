@@ -107,6 +107,12 @@ static void ticket_clerk_sell_tickets(TicketClerk *ticket_clerk, const VisitorMe
     if (ticket_clerk->shared_memory->time
             < calculate_closing_time(&ticket_clerk->shared_memory->parameters)
             && ticket_clerk_add_visitor(ticket_clerk, request, info->trail_nr) == 0) {
+        logger_log(&ticket_clerk->logger,
+                "Received ticket request from PID: %d, age: %d, "
+                "children: %d",
+                request->pid, info->age,
+                info->children_count);
+        
         int cost = TICKET_COST;
         for (int i = 0; i < info->children_count; i++) {
             if (info->children_ages[i] >= 3)
@@ -146,7 +152,10 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
 
     bool terminate = false;
     do {
-        usleep(TICKET_CLERK_DELAY * MILLISECONDS_IN_SECOND);
+        if (ticket_clerk->shared_memory->time
+            < calculate_closing_time(&ticket_clerk->shared_memory->parameters)) {
+            usleep(TICKET_CLERK_DELAY * MILLISECONDS_IN_SECOND);
+        }
         
         int res;
         do {
@@ -160,11 +169,6 @@ TicketClerkRes ticket_clerk_run(TicketClerk *ticket_clerk) {
                 } else {
                     VisitorMessage visitor_message;
                     memcpy(&visitor_message, message.mtext, sizeof(visitor_message));
-                    logger_log(&ticket_clerk->logger,
-                            "Received ticket request from PID: %d, age: %d, "
-                            "children: %d",
-                            visitor_message.pid, visitor_message.visitor_info.age,
-                            visitor_message.visitor_info.children_count);
 
                     ticket_clerk_sell_tickets(ticket_clerk, &visitor_message);
                 }

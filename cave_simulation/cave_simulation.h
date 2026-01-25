@@ -7,7 +7,7 @@
 #include <stdatomic.h>
 #include <sys/ipc.h>
 
-#define MAX_PROCESSES 500
+#define TICKET_OFFICE_LINE_SIZE 500
 
 typedef struct {
     bool disable_guard;

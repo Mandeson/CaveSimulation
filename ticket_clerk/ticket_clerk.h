@@ -4,8 +4,6 @@
 #include "logger_interface.h"
 #include <stdbool.h>
 
-// Delay between ticket sales
-#define TICKET_CLERK_DELAY 10 //In miliseconds
 #define TICKET_COST 26
 
 typedef struct {

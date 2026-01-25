@@ -173,8 +173,6 @@ static void guide_tour(Guide *guide) {
                 0, "guide_tour - catwalk (out)");
     }
 
-    logger_log(&guide->logger, "Gathering new visitors");
-
     give_semaphore(guide->semaphores, CATWALK_SEMAPHORE);
 
     array_clear(&guide->trail_visitors);
@@ -223,11 +221,16 @@ GuideRes guide_run(Guide *guide) {
 
     guide->waiting_by_guide_semaphore = (guide->number == 1) ? WAITING_BY_GUIDE2_SEMAPHORE
             : WAITING_BY_GUIDE1_SEMAPHORE;
-    int timeout = (guide->shared_memory->parameters.T[guide->number]) * SECONDS_IN_MINUTE;
+    int timeout = MAX((guide->shared_memory->parameters.T[guide->number]), 10) * SECONDS_IN_MINUTE;
     int last_time = guide->shared_memory->time;
     do {
-        if (greet_visitors(guide) || (guide->shared_memory->time
-                - last_time >= timeout && guide->trail_visitors_count > 0)) {
+        bool timeout_exceeded = guide->shared_memory->time
+                - last_time >= timeout;
+        if (greet_visitors(guide) || (timeout_exceeded && guide->trail_visitors_count > 0)) {
+            if (timeout_exceeded) {
+                logger_log(&guide->logger, "Guide has been collecting visitors for %d seconds, "
+                    "now proceeding", timeout);
+            }
             guide_tour(guide);
             last_time = guide->shared_memory->time;
         }

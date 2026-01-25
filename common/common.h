@@ -19,6 +19,9 @@
 #define WAITING_BY_GUIDE2_SEMAPHORE 4
 #define CATWALK_SEMAPHORE 5
 
+// Delay between ticket sales
+#define TICKET_CLERK_DELAY 10 //In simulation seconds
+
 #define GUIDE_COUNT 2
 #define VISITORS_WAITING_SIZE 1024
 
