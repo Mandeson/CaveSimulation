@@ -267,7 +267,8 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
         }
         logger_log(&cave_simulation->logger_interface, "Total number of child processes run: %d. Finished: %d",
                 cave_simulation->child_processes, cave_simulation->child_processes_finished);
-        pthread_cancel(cave_simulation->child_wait_thread);
+        if (pthread_cancel(cave_simulation->child_wait_thread) != 0)
+            perror("cave_simulation_destroy: pthread_cancel");
     }
 
     close_catwalk_pipe_input(cave_simulation->shared_memory);
@@ -386,7 +387,11 @@ CaveSimulationRes cave_simulation_run(CaveSimulation *cave_simulation) {
     cave_simulation->shared_memory->processes_starting++;
     cave_simulation->shared_memory->ticket_clerk_pid = fork_res;
 
-    pthread_create(&cave_simulation->child_wait_thread, NULL, child_wait_thread_function, cave_simulation);
+    if (pthread_create(&cave_simulation->child_wait_thread, NULL,
+            child_wait_thread_function, cave_simulation) != 0) {
+        perror("cave_simulation_run: pthread_create");
+        return CAVE_SIMULATION_RUN_FAIL;
+    }
 
     take_semaphore(cave_simulation->semaphores, SHARED_MEMORY_SEMAPHORE);
 
