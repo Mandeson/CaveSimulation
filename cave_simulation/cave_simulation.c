@@ -269,6 +269,8 @@ CaveSimulationRes cave_simulation_destroy(CaveSimulation *cave_simulation) {
                 cave_simulation->child_processes, cave_simulation->child_processes_finished);
         if (pthread_cancel(cave_simulation->child_wait_thread) != 0)
             perror("cave_simulation_destroy: pthread_cancel");
+        if (pthread_join(cave_simulation->child_wait_thread, NULL) != 0)
+            perror("cave_simulation_destroy: pthread_join");
     }
 
     close_catwalk_pipe_input(cave_simulation->shared_memory);
