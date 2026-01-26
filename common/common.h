@@ -23,6 +23,7 @@
 #define TICKET_CLERK_DELAY 10 //In simulation seconds
 
 #define GUIDE_COUNT 2
+#define MAX_CHILDREN_COUNT 5
 #define VISITORS_WAITING_SIZE 1024
 
 #define MESSAGE_QUEUE_SEND_SUCCESS 0
@@ -89,9 +90,9 @@ typedef struct {
 typedef struct {
     int age;
     uint8_t children_count;
-    uint8_t children_ages[2];
+    uint8_t children_ages[MAX_CHILDREN_COUNT];
     bool second_tour;
-    int trail_nr;
+    uint8_t trail_nr;
 } VisitorInfo;
 
 typedef struct {

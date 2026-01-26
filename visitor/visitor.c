@@ -22,10 +22,10 @@ static int init_parameters(Visitor *visitor) {
 
     int age = rand() % (VISITOR_MAX_AGE + 1 - VISITOR_MIN_AGE) + VISITOR_MIN_AGE;
     visitor->visitor_info.age = age;
-    if (age <= 18) {
+    if (age <= 18 || rand() % 3 != 0) { // One in three visitors has children
         visitor->visitor_info.children_count = 0;
     } else {
-        int children_count = rand() % 3;
+        int children_count = rand() % MAX_CHILDREN_COUNT + 1;
         visitor->visitor_info.children_count = children_count;
         for (int i = 0; i < children_count; i++) {
             int max_child_age = MIN(7, age - 18);
