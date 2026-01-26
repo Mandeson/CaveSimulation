@@ -229,7 +229,7 @@ GuideRes guide_run(Guide *guide) {
         if (greet_visitors(guide) || (timeout_exceeded && guide->trail_visitors_count > 0)) {
             if (timeout_exceeded) {
                 logger_log(&guide->logger, "Guide has been collecting visitors for %d seconds, "
-                    "now proceeding", timeout);
+                    "now proceeding with a smaller group", timeout);
             }
             guide_tour(guide);
             last_time = guide->shared_memory->time;
