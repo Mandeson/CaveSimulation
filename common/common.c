@@ -18,7 +18,7 @@ SharedMemory *attach_shared_memory() {
         return NULL;
     }
 
-    int shared_memory = shmget(shared_memory_key, sizeof(SharedMemory), IPC_CREAT | 0600);
+    int shared_memory = shmget(shared_memory_key, sizeof(SharedMemory), 0600);
     if (shared_memory == -1) {
         perror("attach_shared_memory: shmget");
         return NULL;
@@ -48,7 +48,7 @@ int get_message_queue(int id) {
         return -1;
     }
 
-    int message_queue = msgget(message_queue_key, IPC_CREAT | 0600);
+    int message_queue = msgget(message_queue_key, 0600);
     if (message_queue == -1)
         perror("get_message_queue: msgget");
 
@@ -62,7 +62,7 @@ int get_semaphores() {
         return -1;
     }
 
-    int semaphores = semget(semaphore_key, NSEMAPHORES, IPC_CREAT | 0200);
+    int semaphores = semget(semaphore_key, NSEMAPHORES, 0200);
     if (semaphores == -1)
         perror("get_semaphores: semget");
 
